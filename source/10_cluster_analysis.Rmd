@@ -29,6 +29,7 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
                       comment = "",
                       fig.width = 10, fig.height = 4.4, out.width = "100%")
 
+library(mclust)
 library(tidyverse)
 library(cluster)
 library(simling)
@@ -86,7 +87,7 @@ There is no outcome to predict. The data have no labels for the groups, and the 
 
 1. Distances
 2. k-means
-3. Hierarchical clustering
+3. Hierarchical and model-based clustering
 4. How many clusters, and are they real?
 
 ## The data {.smaller}
@@ -124,7 +125,7 @@ Older speakers keep lenis and aspirated stops apart by VOT and by f0. In younger
 _Source: Payne, Langbauer & Thomas (1986), Behavioral Ecology and Sociobiology_
 :::
 
-## Similar means close
+## Distances between observations
 
 Every clustering method starts from a [distance]{.hl} between observations. With two measures, the usual [Euclidean distance]{.hl} is the length of the straight line between two points in the plot:
 
@@ -181,7 +182,7 @@ With f0 in Hz, two clusters separate women from men. Gender is a real grouping i
 # k-means
 
 ::: {.fact}
-`Did you know:` Mlaika, an adolescent African elephant in Kenya, imitated the sound of the [trucks]{.hl} on a nearby highway. Another elephant, kept with Asian elephants in a Swiss zoo, imitated their chirping calls.
+`Did you know:` Mlaika, an adolescent African elephant in Kenya, imitated the sound of [trucks]{.hl}. Another elephant, kept with Asian elephants in a Swiss zoo, imitated their chirping calls.
 
 _Source: Poole et al. (2005), Nature_
 :::
@@ -268,7 +269,7 @@ older |>
 
 [k-medoids]{.hl} (`cluster::pam()`) uses actual observations as centres and works with any distance, which makes it less sensitive to outliers (Kaufman & Rousseeuw, 1990).
 
-# Hierarchical clustering
+# Hierarchical and model-based clustering
 
 ::: {.fact}
 `Did you know:` elephant rumbles also travel through the ground as [seismic]{.hl} waves. In experiments, elephants detected played-back calls through the ground alone and responded to them.
@@ -329,6 +330,39 @@ map(c("single", "average", "ward.D2"), \(m) {
 . . .
 
 On the younger speakers, single linkage puts almost every token into one cluster. It [chains]{.hl}: two groups that touch at one point merge early. Average linkage keeps the tense stops apart but merges lenis and aspirated, and leaves one token as a cluster of its own. Ward's method gives three clusters of similar size, like k-means.
+
+## Model-based clustering
+
+A [Gaussian mixture model]{.hl} treats the data as a mix of normal distributions, one per cluster, each with its own centre, spread and orientation. Clusters can be elliptical and differ in size, and every observation gets a probability of belonging to each cluster (Fraley & Raftery, 2002).
+
+. . .
+
+`{mclust}` fits mixtures with different numbers of components and different shapes, and chooses among them by [BIC]{.hl}, which rewards fit and penalises the number of parameters (Scrucca et al., 2016).
+
+## `Mclust()` {.smaller}
+
+```{r}
+mc_raw <- mclust::Mclust(X_old, G = 1:6, verbose = FALSE)
+mc_raw$G
+table(older$stop, mc_raw$classification)
+```
+
+. . .
+
+BIC prefers four components, and the tense stops take two of them. Their VOT is skewed to the right, and one normal distribution does not fit it.
+
+## Log VOT {.smaller}
+
+```{r}
+X_log <- scale(cbind(log_vot = log(older$vot), f0_st = older$f0_st))
+mc_log <- mclust::Mclust(X_log, G = 1:6, verbose = FALSE)
+mc_log$G
+table(older$stop, mc_log$classification)
+```
+
+. . .
+
+On the log scale, the tense stops are roughly normal. BIC chooses three components, and they match the stops. A component is one normal distribution, so a cluster with another shape can need several.
 
 # How many clusters, and are they real?
 
@@ -419,7 +453,7 @@ Here we know the stops, so we can check the clusters against them. In a real app
 . . .
 
 - A cross-table of clusters and groups shows which groups end up together
-- The [adjusted Rand index]{.hl} sums the table up in one number: 1 when the two groupings are identical, around 0 for chance agreement (Hubert & Arabie, 1985)
+- The [adjusted Rand index]{.hl} sums the table up in one number: 1 when the two groupings are identical, around 0 for chance agreement (Hubert & Arabie, 1985). `mclust::adjustedRandIndex()` computes it
 - A cluster that matches no known group may be worth a look, or may be an artefact of the choices made
 
 ## Two generations
@@ -466,23 +500,26 @@ Report the variables and how you transformed them, the distance, the method and 
 - Standardise measures on different scales, and normalise away groups you are not looking for
 - [k-means]{.hl} needs `k` in advance and assumes round clusters; use many random starts
 - [Hierarchical clustering]{.hl} builds a tree for every `k`; the linkage method changes the result, and Ward's method behaves like k-means
+- [Gaussian mixtures]{.hl} allow elliptical clusters and choose `k` by BIC, but each component must be roughly normal
 - Every method finds clusters, even in noise: choose `k` with the elbow and [silhouettes]{.hl}, compare with known groups and check stability
 :::
 
 ## References {.refs}
 
+- Fraley, C., & Raftery, A. E. (2002). Model-based clustering, discriminant analysis, and density estimation. _Journal of the American Statistical Association_, 97(458), 611–631.
 - Hubert, L., & Arabie, P. (1985). Comparing partitions. _Journal of Classification_, 2(1), 193–218.
 - [James, G., Witten, D., Hastie, T., & Tibshirani, R. (2021). _An introduction to statistical learning: With applications in R_ (2nd ed.). Springer. Chapter 12. https://www.statlearning.com]{.hl}
 - Kaufman, L., & Rousseeuw, P. J. (1990). _Finding groups in data: An introduction to cluster analysis_. Wiley.
 - Rousseeuw, P. J. (1987). Silhouettes: A graphical aid to the interpretation and validation of cluster analysis. _Journal of Computational and Applied Mathematics_, 20, 53–65.
+- Scrucca, L., Fop, M., Murphy, T. B., & Raftery, A. E. (2016). mclust 5: Clustering, classification and density estimation using Gaussian finite mixture models. _The R Journal_, 8(1), 289–317.
 - Silva, D. J. (2006). Acoustic evidence for the emergence of tonal contrast in contemporary Korean. _Phonology_, 23(2), 287–308.
 - Ward, J. H. (1963). Hierarchical grouping to optimize an objective function. _Journal of the American Statistical Association_, 58(301), 236–244.
 
 ## Sources of the animal facts {.refs}
 
-- O'Connell-Rodwell, C. E. (2007). Keeping an "ear" to the ground: Seismic communication in elephants. _Physiology_, 22(4), 287–294.
-- Pardo, M. A., Fristrup, K., Lolchuragi, D. S., Poole, J. H., Granli, P., Moss, C., Douglas-Hamilton, I., & Wittemyer, G. (2024). African elephants address one another with individually specific name-like calls. _Nature Ecology & Evolution_, 8, 1353–1364.
-- Payne, K. B., Langbauer, W. R., & Thomas, E. M. (1986). Infrasonic calls of the Asian elephant (_Elephas maximus_). _Behavioral Ecology and Sociobiology_, 18(4), 297–301.
+- O'Connell-Rodwell, C. E. (2007). Keeping an "ear" to the ground: Seismic communication in elephants. _Physiology_, 22(4), 287–294. https://doi.org/10.1152/physiol.00008.2007
+- Pardo, M. A., Fristrup, K., Lolchuragi, D. S., Poole, J. H., Granli, P., Moss, C., Douglas-Hamilton, I., & Wittemyer, G. (2024). African elephants address one another with individually specific name-like calls. _Nature Ecology & Evolution_, 8(7), 1353–1364. https://doi.org/10.1038/s41559-024-02420-w
+- Payne, K. B., Langbauer, W. R., & Thomas, E. M. (1986). Infrasonic calls of the Asian elephant (_Elephas maximus_). _Behavioral Ecology and Sociobiology_, 18(4), 297–301. https://doi.org/10.1007/BF00300007
 - Poole, J. H., Tyack, P. L., Stoeger-Horwath, A. S., & Watwood, S. (2005). Elephants are capable of vocal learning. _Nature_, 434, 455–456. https://doi.org/10.1038/434455a
 - Stoeger, A. S., Mietchen, D., Oh, S., de Silva, S., Herbst, C. T., Kwon, S., & Fitch, W. T. (2012). An Asian elephant imitates human speech. _Current Biology_, 22(22), 2144–2148. https://doi.org/10.1016/j.cub.2012.09.022
 

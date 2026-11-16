@@ -321,7 +321,7 @@ _Source: van Noordwijk et al. (2018), Journal of Human Evolution_
 ## What forests do not give you
 
 - No coefficients, standard errors or p-values. Importance is a ranking, and says nothing about the direction or shape of an effect
-- No random effects. Tokens from the same speaker are not independent, and the OOB error ignores that: a forest can recognise speakers instead of learning patterns that generalise (next lecture)
+- No random effects. Tokens from the same speaker are not independent, and the OOB error ignores that: a forest can recognise the speaker and look up the answer, which does not carry over to new speakers (next lecture)
 - The results depend on the seed, the settings and the importance measure, so they need to be reported in full
 
 ## Both together

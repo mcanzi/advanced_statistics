@@ -16,6 +16,7 @@ These exercises follow the tasks on the slides of lecture 11, "Cluster analysis 
 ## Setup
 
 ```{r}
+library(mclust)
 library(tidyverse)
 library(psych)
 library(cluster)
@@ -207,7 +208,7 @@ ggplot(profiles, aes(x = dimension, y = mean, colour = cluster, group = cluster)
 
 ### 4.1 Two halves
 
-Split the texts at random into two halves, and fit k-means with three clusters to each half. Assign all 480 texts to the nearest centre of each solution with `nearest()`, and cross-tabulate the two assignments.
+Split the texts at random into two halves, and fit k-means with three clusters to each half. Assign all 480 texts to the nearest centre of each solution with `nearest()`, cross-tabulate the two assignments, and compute their adjusted Rand index with `mclust::adjustedRandIndex()`.
 
 ```{r}
 set.seed(3)
@@ -223,13 +224,14 @@ km_a <- kmeans(S[half == 1, ], centers = 3, nstart = 25)
 set.seed(1)
 km_b <- kmeans(S[half == 2, ], centers = 3, nstart = 25)
 table(first = nearest(S, km_a$centers), second = nearest(S, km_b$centers))
+mclust::adjustedRandIndex(nearest(S, km_a$centers), nearest(S, km_b$centers))
 ```
 
 :::
 
 ### 4.2 Three or six?
 
-Repeat exercise 4.1 with six clusters. For each cluster of the first half, what share of its texts does the second half put together in one cluster? Which solution is more stable?
+Repeat exercise 4.1 with six clusters, and compare the adjusted Rand index of the two solutions. Which one is more stable?
 
 ::: solution
 
@@ -239,8 +241,7 @@ agreement <- function(k) {
   a <- kmeans(S[half == 1, ], centers = k, nstart = 25)
   set.seed(1)
   b <- kmeans(S[half == 2, ], centers = k, nstart = 25)
-  tab <- table(nearest(S, a$centers), nearest(S, b$centers))
-  sum(apply(tab, 1, max)) / sum(tab)
+  mclust::adjustedRandIndex(nearest(S, a$centers), nearest(S, b$centers))
 }
 c(three = agreement(3), six = agreement(6))
 ```
@@ -298,6 +299,22 @@ Cluster the standardised features (`scale(features)`) into three clusters, and c
 set.seed(1)
 km_std <- kmeans(scale(features), centers = 3, nstart = 25)
 table(scores = km3$cluster, features = km_std$cluster)
+```
+
+:::
+
+### 5.5 A mixture model
+
+Fit a Gaussian mixture to the dimension scores with `mclust::Mclust(S, G = 1:8, verbose = FALSE)`, as in lecture 10. How many components does BIC choose? Compare the components with the registers and with your k-means clusters, with cross-tables and the adjusted Rand index.
+
+::: solution
+
+```{r}
+mc <- mclust::Mclust(S, G = 1:8, verbose = FALSE)
+mc$G
+table(scores$register, mc$classification)
+c(registers = mclust::adjustedRandIndex(scores$register, mc$classification),
+  kmeans = mclust::adjustedRandIndex(km3$cluster, mc$classification))
 ```
 
 :::

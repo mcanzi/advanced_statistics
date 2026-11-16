@@ -532,7 +532,7 @@ ggsave("figures/figure1.png", fig1, width = 17, height = 8, units = "cm", dpi = 
 
 . . .
 
-Never paste a screenshot of the RStudio plot pane into a thesis or a paper.
+A screenshot of the RStudio plot pane is a raster image at screen size, and it blurs on the printed page, so export figures with `ggsave()`.
 
 ## Before you submit
 

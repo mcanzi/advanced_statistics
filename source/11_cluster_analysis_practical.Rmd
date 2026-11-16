@@ -29,6 +29,7 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
                       comment = "",
                       fig.width = 10, fig.height = 4.4, out.width = "100%")
 
+library(mclust)
 library(tidyverse)
 library(psych)
 library(cluster)
@@ -266,7 +267,7 @@ Each cluster stands out on one or two dimensions. Clusters that mix registers ca
 # How stable are the clusters?
 
 ::: {.fact}
-`Did you know:` starlings learned to tell apart sound sequences built with [centre-embedding]{.hl} from sequences without it. Gentner and colleagues took this as evidence against the claim that only humans can learn such recursive patterns.
+`Did you know:` starlings learned to tell apart sound sequences built with [centre-embedding]{.hl} from sequences without it. Gentner and colleagues saw this as recursive pattern learning; linguists have questioned whether the birds learned a recursive rule at all.
 
 _Source: Gentner et al. (2006), Nature_
 :::
@@ -282,7 +283,7 @@ nearest <- function(X, centres) apply(X, 1, \(x) which.min(colSums((t(centres) -
 ```
 
 1. Fit k-means with three clusters to each half
-2. Assign all 480 texts to the nearest centre of each solution with `nearest()`, and cross-tabulate the two assignments
+2. Assign all 480 texts to the nearest centre of each solution with `nearest()`, and compare the two assignments with the adjusted Rand index from lecture 10, `mclust::adjustedRandIndex()`
 3. Repeat with k = 6. Which solution is more stable?
 
 ```{r task-6, include = FALSE}
@@ -294,24 +295,23 @@ agreement <- function(k) {
   a <- kmeans(S[half == 1, ], centers = k, nstart = 25)
   set.seed(1)
   b <- kmeans(S[half == 2, ], centers = k, nstart = 25)
-  tab <- table(nearest(S, a$centers), nearest(S, b$centers))
-  sum(apply(tab, 1, max)) / sum(tab)
+  mclust::adjustedRandIndex(nearest(S, a$centers), nearest(S, b$centers))
 }
-stability <- tibble(k = 2:8, agreement = map_dbl(k, agreement))
+stability <- tibble(k = 2:8, ari = map_dbl(k, agreement))
 ```
 
 ## Checkpoint 6
 
 ```{r check-6, echo = FALSE, fig.height = 2.9}
-ggplot(stability, aes(x = k, y = agreement)) +
+ggplot(stability, aes(x = k, y = ari)) +
   geom_line(colour = muted) +
   geom_point(colour = kingfisher, size = 3) +
   scale_x_continuous(breaks = 2:8) +
-  scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
-  labs(x = "Number of clusters k", y = "Texts in matching clusters")
+  scale_y_continuous(limits = c(0, 1)) +
+  labs(x = "Number of clusters k", y = "Adjusted Rand index")
 ```
 
-For each cluster of the first half, the share of its texts that the second half puts together in one cluster. Agreement is `r round(100 * stability$agreement[stability$k == 3])`% for three clusters and `r round(100 * stability$agreement[stability$k == 6])`% for six.
+Agreement between the solutions of the two halves, corrected for chance. The adjusted Rand index is `r round(stability$ari[stability$k == 3], 2)` for three clusters and `r round(stability$ari[stability$k == 6], 2)` for six.
 
 ## Task 7: report
 

@@ -29,7 +29,7 @@ All data sets come from [{simling}](https://mcanzi.de/simling/), a package of si
 
 Knit `source/render_all.Rmd` to render every session into `docs`, which GitHub Pages serves. Knitting a single session also writes its HTML into `docs`. All sessions use the glacier theme of mcanzi.de (`source/theme-buttercup.css`): slate blue and ice, salmon accents, and glacier buttercups drawn in ink in the background. `source/slides_setup.R` sets the plot colours to match it. The fonts are in `source/fonts` and are embedded in each HTML file.
 
-Requires `konstats` and `simling` (`remotes::install_github("mcanzi/konstats")` installs both), `tidyverse`, `revealjs`, `broom`, `lme4`, `lmerTest`, `patchwork`, `ggeffects`, `ggrepel`, `ggridges`, `mgcv`, `tidygam`, `itsadug`, `rpart`, `ranger`, `simr`, `psych`, `GPArotation`, `lavaan` and `cluster`; optional: `qrcode` (QR codes), `ragg` and `systemfonts` (Atkinson Hyperlegible in the figures).
+Requires `konstats` and `simling` (`remotes::install_github("mcanzi/konstats")` installs both), `tidyverse`, `revealjs`, `broom`, `lme4`, `lmerTest`, `patchwork`, `ggeffects`, `ggrepel`, `ggridges`, `mgcv`, `tidygam`, `itsadug`, `rpart`, `ranger`, `simr`, `psych`, `GPArotation`, `lavaan`, `cluster` and `mclust`; optional: `qrcode` (QR codes), `ragg` and `systemfonts` (Atkinson Hyperlegible in the figures).
 
 ## License
 
