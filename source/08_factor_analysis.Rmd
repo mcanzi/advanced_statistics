@@ -1,0 +1,559 @@
+---
+title: "Factor analysis"
+subtitle: "Latent variables behind many measures"
+author: "Dr Massimiliano Canzi"
+knit: (function(input, ...) rmarkdown::render(input, output_dir = file.path(dirname(input), "..", "docs")))
+output:
+  revealjs::revealjs_presentation:
+    theme: black
+    css: theme-buttercup.css
+    highlight: zenburn
+    mathjax: null
+    incremental: true
+    transition: fade
+    background_transition: fade
+    self_contained: true
+    reveal_options:
+      width: 1050
+      height: 700
+      slideNumber: "c/t"
+      showSlideNumber: all
+      controls: true
+      touch: true
+      transitionSpeed: fast
+      navigationMode: linear
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
+                      comment = "",
+                      fig.width = 10, fig.height = 4.4, out.width = "100%")
+
+library(tidyverse)
+library(psych)
+library(lavaan)
+library(simling)
+
+source("slides_setup.R", local = knitr::knit_global())
+
+options(width = 70, pillar.print_min = 4, pillar.print_max = 4)
+
+true_loadings <- tribble(
+  ~item, ~attitude, ~true,
+  "intelligent", "status", 0.75,
+  "educated", "status", 0.80,
+  "competent", "status", 0.70,
+  "lazy", "status", 0.55,
+  "friendly", "solidarity", 0.80,
+  "warm", "solidarity", 0.75,
+  "trustworthy", "solidarity", 0.65,
+  "cold", "solidarity", 0.60,
+  "used_by_young", "vitality", 0.60,
+  "will_survive", "vitality", 0.70,
+  "teach_school", "vitality", 0.65,
+  "identity", "vitality", 0.70
+)
+
+own_loadings <- function(model) {
+  unclass(model$loadings) |>
+    as_tibble(rownames = "item") |>
+    pivot_longer(-item, names_to = "factor", values_to = "loading") |>
+    left_join(true_loadings, by = "item") |>
+    mutate(factor_attitude = attitude[which.max(abs(loading))], .by = factor) |>
+    filter(attitude == factor_attitude) |>
+    select(item, attitude, factor, loading, true)
+}
+```
+
+# Factor analysis
+
+<style>
+  :root {
+    --footer-text:  "Factor analysis";
+    --qr:           `r qr_css`;
+    --lecture:      `r lecture_label`;
+  }
+</style>
+
+::: {.fact}
+`Did you know:` white-crowned sparrows around San Francisco Bay sing in local [dialects]{.hl}. Marler and Tamura found constant differences between the songs of three populations, and each male kept the same song type from year to year.
+
+_Source: Marler & Tamura (1962), The Condor_
+:::
+
+## Where we are
+
+Every variable in our models so far was measured directly, such as a reaction time or a formant. Many questions in linguistics are about things nobody can measure directly, such as language attitudes or the style of a text. We measure them through several [indicators]{.hl}, such as questionnaire items or linguistic features.
+
+. . .
+
+[Factor analysis]{.hl} asks how many underlying variables, the [factors]{.hl}, are needed to explain the correlations between the indicators, and which indicators belong to which factor. This lecture explains exploratory factor analysis; next time you run one on corpus data.
+
+## Today
+
+1. The factor model
+2. How many factors?
+3. Fitting and rotating
+4. Using the factors
+
+## The data {.smaller}
+
+`language_attitudes` from {simling}: a simulated survey in which 320 respondents rate speakers of a regional dialect on 12 statements, from 1 (strongly disagree) to 5 (strongly agree).
+
+```{r}
+language_attitudes
+```
+
+## The items {.smaller}
+
+| Items | Dialect speakers sound … / The dialect … |
+|:--|:--|
+| `intelligent`, `educated`, `competent`, `lazy` | intelligent, educated, competent, lazy |
+| `friendly`, `warm`, `trustworthy`, `cold` | friendly, warm, trustworthy, cold |
+| `used_by_young`, `will_survive`, `teach_school`, `identity` | is used by young people, will survive, should be taught at school, matters for local identity |
+
+. . .
+
+The questionnaire was written for three attitudes that language attitude research distinguishes: the [status]{.hl} of the speakers, [solidarity]{.hl} with them (Dragojevic et al., 2021) and the [vitality]{.hl} of the dialect (Giles et al., 1977). `lazy` and `cold` are worded negatively.
+
+## The answers
+
+```{r answers, echo = FALSE, fig.height = 3.9}
+likert_cols <- setNames(colorRampPalette(c(kingfisher, muted, pandan))(5), 1:5)
+language_attitudes |>
+  pivot_longer(intelligent:identity, names_to = "item", values_to = "answer") |>
+  filter(!is.na(answer)) |>
+  mutate(item = factor(item, levels = rev(true_loadings$item)),
+         answer = factor(answer, levels = 5:1)) |>
+  ggplot(aes(y = item, fill = answer)) +
+  geom_bar(position = "fill", width = 0.75) +
+  scale_fill_manual(values = likert_cols, breaks = as.character(1:5)) +
+  scale_x_continuous(labels = scales::percent) +
+  labs(x = "Share of answers", y = NULL, fill = "Answer") +
+  theme(legend.position = "right", panel.grid.major.y = element_blank())
+```
+
+Answers from 1 (left) to 5 (right). About 2% of the answers are missing, and `?language_attitudes` gives the true model.
+
+# The factor model
+
+::: {.fact}
+`Did you know:` young male white-crowned sparrows learn their dialect from older males in about their first [100 days]{.hl}. In the laboratory, they could be taught the dialect of another population.
+
+_Source: Marler & Tamura (1964), Science_
+:::
+
+## Correlations between items
+
+```{r correlations, echo = FALSE, fig.height = 4.3}
+r_raw <- cor(select(language_attitudes, intelligent:identity), use = "pairwise.complete.obs")
+as_tibble(r_raw, rownames = "row") |>
+  pivot_longer(-row, names_to = "col", values_to = "r") |>
+  mutate(r = if_else(row == col, NA_real_, r),
+         label = if_else(is.na(r), "", sub("^(-?)0", "\\1", sprintf("%.2f", r))),
+         row = factor(row, levels = rev(colnames(r_raw))),
+         col = factor(col, levels = colnames(r_raw))) |>
+  ggplot(aes(x = col, y = row, fill = r)) +
+  geom_tile(colour = floor_col) +
+  geom_text(aes(label = label), size = 3.1, colour = mist) +
+  scale_fill_gradient2(low = kingfisher, mid = floor_col, high = pandan, midpoint = 0,
+                       limits = c(-1, 1), na.value = "transparent") +
+  labs(x = NULL, y = NULL, fill = "r") +
+  theme(axis.text.x = element_text(angle = 40, hjust = 1), panel.grid = element_blank(),
+        legend.position = "right")
+```
+
+Items written for the same attitude correlate more with each other than with the rest. `lazy` and `cold` correlate negatively with the other items of their group.
+
+## The model
+
+Each item is a weighted sum of the factors plus a part of its own:
+
+```
+intelligent = λ1 × status + λ2 × solidarity + λ3 × vitality + unique part
+```
+
+- The weights are the [loadings]{.hl}. With standardised items and uncorrelated factors, a loading is the correlation between the item and the factor
+- The share of an item's variance that the factors explain is its [communality]{.hl}. The rest, its [uniqueness]{.hl}, is measurement error plus anything specific to that item
+- Two items correlate only through the factors they share. Factor analysis looks for the loadings that reproduce the observed correlations best
+
+## Factor analysis and PCA
+
+[Principal component analysis]{.hl} (PCA) is often run and reported as factor analysis; in SPSS it is the default extraction method of the factor analysis dialog. PCA summarises all the variance of the items in a few components, so each component also takes up the unique variance of its items. Factor analysis only models the variance the items share.
+
+. . .
+
+- Use PCA to reduce many variables to a few scores, for example as predictors in a regression
+- Use factor analysis when the factors stand for something you could not measure directly, such as an attitude (Fabrigar et al., 1999)
+
+## Loadings from PCA and from factor analysis
+
+```{r pca-fa, echo = FALSE, fig.height = 3.3}
+la <- language_attitudes |>
+  mutate(lazy = 6 - lazy, cold = 6 - cold)
+items <- select(la, intelligent:identity)
+efa <- fa(items, nfactors = 3, rotate = "oblimin", fm = "minres", cor = "poly")
+pca <- principal(items, nfactors = 3, rotate = "oblimin", cor = "poly")
+bind_rows(`Factor analysis` = own_loadings(efa), PCA = own_loadings(pca), .id = "method") |>
+  ggplot(aes(x = true, y = loading, colour = method, shape = method)) +
+  geom_abline(colour = muted, linetype = "dashed") +
+  geom_point(size = 3.2, stroke = 1.1) +
+  scale_colour_manual(values = c(pandan, kingfisher)) +
+  scale_shape_manual(values = c(16, 1)) +
+  coord_equal(xlim = c(0.45, 1), ylim = c(0.45, 1)) +
+  labs(x = "True loading", y = "Estimated loading", colour = NULL, shape = NULL) +
+  theme(legend.position = "right")
+```
+
+Each point is an item, on its own attitude, after reverse coding. PCA loadings lie above the dashed line, where estimates equal the true values.
+
+# How many factors?
+
+::: {.fact}
+`Did you know:` female white-crowned sparrows do not normally sing. Given [testosterone]{.hl}, they sang, and their songs showed which dialect they had heard as young birds.
+
+_Source: Konishi (1965), Zeitschrift für Tierpsychologie_
+:::
+
+## Eigenvalues
+
+The [eigenvalues]{.hl} of the correlation matrix say how much of the total variance each successive dimension explains. Twelve standardised items have a total variance of 12.
+
+```{r eigen}
+r_items <- cor(items, use = "pairwise.complete.obs")
+eig <- eigen(r_items)$values
+round(eig, 2)
+```
+
+. . .
+
+Keeping every factor with an eigenvalue above 1 (Kaiser, 1960) is still the default in some programs. It often keeps too many factors, especially with many items (Zwick & Velicer, 1986). Here it would keep `r sum(eig > 1)`.
+
+## Parallel analysis
+
+[Parallel analysis]{.hl} compares each eigenvalue with the eigenvalues of random data of the same size, in which no factors exist (Horn, 1965). Keep the factors whose eigenvalues are larger than those of random data.
+
+```{r parallel}
+set.seed(1)
+eig_random <- replicate(100, {
+  noise <- matrix(rnorm(nrow(items) * ncol(items)), ncol = ncol(items))
+  eigen(cor(noise))$values
+})
+n_factors <- which(eig < rowMeans(eig_random))[1] - 1
+n_factors
+```
+
+`psych::fa.parallel()` does the same, with more options.
+
+## Scree plot
+
+```{r scree, echo = FALSE, fig.height = 2.8}
+tibble(dimension = seq_along(eig), Observed = eig, `Random data` = rowMeans(eig_random)) |>
+  pivot_longer(-dimension, names_to = "data", values_to = "eigenvalue") |>
+  ggplot(aes(x = dimension, y = eigenvalue, colour = data, shape = data)) +
+  geom_hline(yintercept = 1, colour = muted, linetype = "dashed") +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  scale_colour_manual(values = c(kingfisher, pandan)) +
+  scale_x_continuous(breaks = 1:12) +
+  labs(x = "Dimension", y = "Eigenvalue", colour = NULL, shape = NULL) +
+  theme(legend.position = "right")
+```
+
+A [scree plot]{.hl} shows the eigenvalues in order. Cattell (1966) suggested keeping the dimensions before the curve flattens; parallel analysis adds a line to compare against. Theory and interpretability count too: three attitudes went into the questionnaire, and each factor kept should make sense.
+
+# Fitting and rotating
+
+::: {.fact}
+`Did you know:` in captivity, white-crowned sparrows of a migratory subspecies slept about [two-thirds less]{.hl} during the migration season, and still did well in a learning task. Outside that season, one night of restricted sleep was enough to impair them.
+
+_Source: Rattenborg et al. (2004), PLoS Biology_
+:::
+
+## Before fitting
+
+```{r, eval = FALSE}
+la <- language_attitudes |>
+  mutate(lazy = 6 - lazy, cold = 6 - cold)
+items <- select(la, intelligent:identity)
+```
+
+- [Reverse coding]{.hl} turns the negatively worded items around, so that a high answer always means a positive attitude
+- About 2% of the answers are missing. `fa()` computes each correlation from everyone who answered both items ([pairwise deletion]{.hl}). Keeping only complete answers would drop `r sum(!complete.cases(items))` of the 320 respondents
+
+## Polychoric correlations
+
+A [polychoric correlation]{.hl} estimates the correlation between the continuous attitudes behind two ordered items, as if each answer cut a normal distribution into five ranges.
+
+```{r poly-plot, echo = FALSE, fig.height = 2.3}
+r_poly <- polychoric(items)$rho
+tibble(pearson = r_items[lower.tri(r_items)], polychoric = r_poly[lower.tri(r_poly)]) |>
+  ggplot(aes(x = pearson, y = polychoric)) +
+  geom_abline(colour = muted, linetype = "dashed") +
+  geom_point(colour = kingfisher, size = 2.4) +
+  labs(x = "Pearson r", y = "Polychoric r")
+```
+
+Each point is a pair of items. Pearson correlations between categories are smaller, and so are the loadings estimated from them (Holgado-Tello et al., 2010).
+
+## Fitting the model {.smaller}
+
+```{r fit}
+efa <- fa(items, nfactors = 3, rotate = "oblimin", fm = "minres", cor = "poly")
+```
+
+```{r fit-table, echo = FALSE}
+unclass(efa$loadings) |>
+  as_tibble(rownames = "item") |>
+  mutate(across(-item, \(x) if_else(abs(x) < 0.3, "", sprintf("%.2f", x)))) |>
+  knitr::kable(align = "lrrr")
+```
+
+## Reading the output
+
+- The table on the previous slide leaves out loadings below 0.3, so each item shows only the factor or factors it belongs to. An item that loads on two factors is a [cross-loading]{.hl} item, and makes a factor harder to interpret
+- The columns `MR1` to `MR3` (minimum residual factors) have no names. Naming them is your job, from the items with the highest loadings
+- `print(efa$loadings, cutoff = 0.3)` gives the same table, and `efa$communality` the communalities
+- `fm = "minres"` gives results close to maximum likelihood (`fm = "ml"`), and also works when the correlation matrix is difficult
+
+## Rotation
+
+The loadings of an unrotated solution are hard to read: the first factor takes as much variance as it can, and most items load on it. A [rotation]{.hl} turns the factors until each item loads strongly on few of them, without changing how well the model fits.
+
+- [Orthogonal]{.hl} rotations, such as `"varimax"`, keep the factors uncorrelated
+- [Oblique]{.hl} rotations, such as `"oblimin"` or `"promax"`, let them correlate. Attitudes and styles usually do, so an oblique rotation is the better default; if the factors are in fact uncorrelated, it will find that too
+
+## Factor correlations
+
+`efa$Phi` holds the correlations between the factors. Here they are named after their items:
+
+```{r phi, echo = FALSE}
+attitude_of <- deframe(distinct(own_loadings(efa), factor, attitude))
+phi <- efa$Phi
+dimnames(phi) <- list(attitude_of[colnames(efa$loadings)], attitude_of[colnames(efa$loadings)])
+knitr::kable(round(phi, 2))
+```
+
+The simulation correlates status with solidarity at 0.2, status with vitality at 0.3, and solidarity with vitality at 0.5. Varimax would force all three to zero.
+
+## Checking against the true model
+
+```{r check-true, echo = FALSE, fig.height = 3.2}
+efa_pearson <- fa(items, nfactors = 3, rotate = "oblimin", fm = "minres")
+bind_rows(Polychoric = own_loadings(efa), Pearson = own_loadings(efa_pearson), .id = "correlations") |>
+  mutate(item = fct_reorder(item, true)) |>
+  ggplot(aes(x = loading, y = item, colour = correlations, shape = correlations)) +
+  geom_point(aes(x = true), shape = 124, size = 6, colour = mist) +
+  geom_point(size = 3, stroke = 1.1) +
+  scale_colour_manual(values = c(pandan, kingfisher)) +
+  scale_shape_manual(values = c(1, 16)) +
+  facet_wrap(~ attitude, scales = "free_y") +
+  labs(x = "Loading on the item's own factor", y = NULL, colour = NULL, shape = NULL) +
+  theme(legend.position = "bottom")
+```
+
+The vertical marks are the true loadings from `?language_attitudes`. Estimates from polychoric correlations lie close to them; estimates from Pearson correlations are smaller.
+
+# Using the factors
+
+::: {.fact}
+`Did you know:` during the 2020 lockdown, noise in San Francisco fell to levels last heard in the 1950s. White-crowned sparrows sang [more softly]{.hl} and lower, and their songs still carried farther than before.
+
+_Source: Derryberry et al. (2020), Science_
+:::
+
+## Reliability
+
+Before items are combined into a score, the score needs to be reliable. [Cronbach's alpha]{.hl} assumes that all items of a scale load equally on their factor. [Omega]{.hl} uses the loadings of a one-factor model, so it does without that assumption (McNeish, 2018).
+
+```{r reliability}
+scales <- list(status = c("intelligent", "educated", "competent", "lazy"),
+               solidarity = c("friendly", "warm", "trustworthy", "cold"),
+               vitality = c("used_by_young", "will_survive", "teach_school", "identity"))
+omega_total <- function(x) {
+  l <- fa(x, nfactors = 1)$loadings[, 1]
+  sum(l)^2 / (sum(l)^2 + sum(1 - l^2))
+}
+```
+
+## Reliability of the three scales
+
+```{r reliability-table}
+imap(scales, \(cols, name) tibble(scale = name,
+                                  alpha = psych::alpha(la[cols])$total$raw_alpha,
+                                  omega = omega_total(la[cols]))) |>
+  list_rbind() |>
+  knitr::kable(digits = 2)
+```
+
+When the loadings of a scale differ, alpha underestimates its reliability.
+
+## Sum scores and factor scores
+
+Most studies average the items of each scale, which gives every item the same weight. [Factor scores]{.hl} weight each item by its loading (`fa(..., scores = "regression")`), but different methods give different scores for the same model, so they are less transparent.
+
+```{r scores}
+la_scores <- la |>
+  mutate(status = rowMeans(pick(all_of(scales$status)), na.rm = TRUE),
+         solidarity = rowMeans(pick(all_of(scales$solidarity)), na.rm = TRUE),
+         vitality = rowMeans(pick(all_of(scales$vitality)), na.rm = TRUE))
+```
+
+## Using the scores {.smaller}
+
+```{r scores-lm}
+std <- la_scores |>
+  mutate(across(c(status, solidarity, vitality), \(x) as.numeric(scale(x))),
+         age_10 = (age - 45) / 10)
+effects <- map(names(scales), \(s) {
+  lm(reformulate(c("dialect_speaker", "age_10"), response = s), data = std) |>
+    broom::tidy(conf.int = TRUE) |>
+    mutate(scale = s)
+}) |>
+  list_rbind() |>
+  filter(term != "(Intercept)")
+```
+
+Each scale is standardised, so the coefficients are in standard deviations; `age_10` is age in decades, centred on 45.
+
+## Who rates the dialect higher?
+
+```{r effects-plot, echo = FALSE, fig.height = 3.0}
+true_effects <- tribble(
+  ~scale, ~term, ~estimate,
+  "status", "dialect_speakeryes", 0,
+  "solidarity", "dialect_speakeryes", 0.6,
+  "vitality", "dialect_speakeryes", 0.5,
+  "status", "age_10", 0,
+  "solidarity", "age_10", 0,
+  "vitality", "age_10", -0.1
+)
+term_labels <- c(dialect_speakeryes = "Dialect speaker", age_10 = "Age (per decade)")
+effects |>
+  ggplot(aes(x = estimate, y = scale)) +
+  geom_vline(xintercept = 0, colour = muted, linetype = "dashed") +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2, colour = kingfisher) +
+  geom_point(colour = kingfisher, size = 3) +
+  geom_point(data = true_effects, shape = 1, size = 3.5, stroke = 1.1, colour = mist) +
+  facet_wrap(~ term, scales = "free_x", labeller = as_labeller(term_labels)) +
+  labs(x = "Effect (SD), with 95% CI", y = NULL)
+```
+
+Filled points are the estimates, open circles the effects on the attitudes in the simulation. Mean scores contain measurement error, which pulls effects towards zero. Models with latent variables avoid this ([structural equation models]{.hl}).
+
+## Exploratory and confirmatory
+
+In an exploratory factor analysis, every item may load on every factor. A [confirmatory factor analysis]{.hl} (CFA) tests a model you specify in advance: each item loads only on its own factor, and all other loadings are fixed at zero.
+
+. . .
+
+A model suggested by the data will fit those data well, so test it on new data. Here: an EFA on one half of the respondents, a CFA on the other half.
+
+## Two halves
+
+```{r split}
+set.seed(8)
+la_half <- la |>
+  mutate(half = sample(rep(1:2, length.out = n())))
+efa_half <- fa(select(filter(la_half, half == 1), intelligent:identity),
+               nfactors = 3, rotate = "oblimin", cor = "poly")
+```
+
+Check that the loadings of `efa_half` show the same three groups of items before you go on.
+
+## A confirmatory model in lavaan {.smaller}
+
+```{r cfa}
+cfa_model <- "
+  status =~ intelligent + educated + competent + lazy
+  solidarity =~ friendly + warm + trustworthy + cold
+  vitality =~ used_by_young + will_survive + teach_school + identity
+"
+cfa_fit <- cfa(cfa_model, data = filter(la_half, half == 2), ordered = TRUE,
+               missing = "pairwise")
+fitMeasures(cfa_fit, c("cfi.scaled", "tli.scaled", "rmsea.scaled", "srmr")) |>
+  round(3)
+```
+
+`ordered = TRUE` treats the answers as ordered categories, as polychoric correlations did in the EFA (Rosseel, 2012).
+
+## Model fit
+
+Because a CFA fixes most loadings at zero, we can ask how well it reproduces the observed correlations. Common rules of thumb are CFI and TLI above 0.95, RMSEA below 0.06 and SRMR below 0.08 (Hu & Bentler, 1999).
+
+- These cutoffs come from simulations with continuous data. Do not apply them mechanically, least of all to ordered categories
+- If the model fits badly, the [modification indices]{.hl} (`modindices(cfa_fit)`) show which fixed parameters would improve it most. A model changed this way is exploratory again and needs new data to be confirmed
+
+## Confirmatory estimates
+
+```{r cfa-estimates, echo = FALSE, fig.height = 3.0}
+standardizedSolution(cfa_fit) |>
+  filter(op == "=~") |>
+  select(attitude = lhs, item = rhs, est.std, ci.lower, ci.upper) |>
+  left_join(select(true_loadings, item, true), by = "item") |>
+  mutate(item = fct_reorder(item, true)) |>
+  ggplot(aes(x = est.std, y = item)) +
+  geom_point(aes(x = true), shape = 124, size = 6, colour = mist) +
+  geom_errorbar(aes(xmin = ci.lower, xmax = ci.upper), width = 0.25, colour = kingfisher) +
+  geom_point(colour = kingfisher, size = 2.8) +
+  facet_wrap(~ attitude, scales = "free_y") +
+  labs(x = "Standardised loading, with 95% CI", y = NULL)
+```
+
+Loadings from 160 respondents, with the true loadings as vertical marks. The factor correlations are in `standardizedSolution(cfa_fit)`, in the rows where `op` is `~~`.
+
+## Reporting {.smaller}
+
+> We ran an exploratory factor analysis of the 12 items on polychoric correlations, with minimum residual estimation and oblimin rotation (`{psych}` version `r packageVersion("psych")`; Revelle, `r format(packageDate("psych"), "%Y")`). Parallel analysis suggested `r n_factors` factors, and we fitted a model with three. The factors corresponded to status, solidarity and vitality, with loadings of `r round(min(own_loadings(efa)$loading), 2)` to `r round(max(own_loadings(efa)$loading), 2)` on the items' own factors. Omega was `r paste(round(map_dbl(scales, \(cols) omega_total(la[cols])), 2), collapse = ", ")` for the three scales.
+
+. . .
+
+Add the loadings table, the factor correlations, how you treated missing answers, and the fit of the confirmatory model on the second half of the data.
+
+## Summary
+
+::: {.takeaway}
+- [Factor analysis]{.hl} explains the correlations between many indicators with a few latent factors. PCA reduces the indicators to a few scores and has no unique parts
+- Choose the number of factors with [parallel analysis]{.hl}, the scree plot and interpretability. Eigenvalues above 1 tend to give too many
+- For rating scales, factor [polychoric correlations]{.hl}, and use an [oblique rotation]{.hl} unless you have a reason not to
+- Report reliability with omega before combining items into scores
+- A model that came from the data needs to be confirmed on other data, for example with a CFA on a held-out half
+:::
+
+## References {.refs}
+
+- Cattell, R. B. (1966). The scree test for the number of factors. _Multivariate Behavioral Research_, 1(2), 245–276.
+- Dragojevic, M., Fasoli, F., Cramer, J., & Rakić, T. (2021). Toward a century of language attitudes research: Looking back and moving forward. _Journal of Language and Social Psychology_, 40(1), 60–79.
+- [Fabrigar, L. R., Wegener, D. T., MacCallum, R. C., & Strahan, E. J. (1999). Evaluating the use of exploratory factor analysis in psychological research. _Psychological Methods_, 4(3), 272–299.]{.hl}
+- Giles, H., Bourhis, R. Y., & Taylor, D. M. (1977). Towards a theory of language in ethnic group relations. In H. Giles (Ed.), _Language, ethnicity and intergroup relations_ (pp. 307–348). Academic Press.
+- Holgado-Tello, F. P., Chacón-Moscoso, S., Barbero-García, I., & Vila-Abad, E. (2010). Polychoric versus Pearson correlations in exploratory and confirmatory factor analysis of ordinal variables. _Quality & Quantity_, 44(1), 153–166.
+- Horn, J. L. (1965). A rationale and test for the number of factors in factor analysis. _Psychometrika_, 30(2), 179–185.
+
+## References (continued) {.refs}
+
+- Hu, L., & Bentler, P. M. (1999). Cutoff criteria for fit indexes in covariance structure analysis: Conventional criteria versus new alternatives. _Structural Equation Modeling_, 6(1), 1–55.
+- Kaiser, H. F. (1960). The application of electronic computers to factor analysis. _Educational and Psychological Measurement_, 20(1), 141–151.
+- McNeish, D. (2018). Thanks coefficient alpha, we'll take it from here. _Psychological Methods_, 23(3), 412–433.
+- Revelle, W. (`r format(packageDate("psych"), "%Y")`). _psych: Procedures for psychological, psychometric, and personality research_ [R package]. Northwestern University. https://CRAN.R-project.org/package=psych
+- Rosseel, Y. (2012). lavaan: An R package for structural equation modeling. _Journal of Statistical Software_, 48(2), 1–36.
+- Zwick, W. R., & Velicer, W. F. (1986). Comparison of five rules for determining the number of components to retain. _Psychological Bulletin_, 99(3), 432–442.
+
+## Sources of the animal facts {.refs}
+
+- Derryberry, E. P., Phillips, J. N., Derryberry, G. E., Blum, M. J., & Luther, D. (2020). Singing in a silent spring: Birds respond to a half-century soundscape reversion during the COVID-19 shutdown. _Science_, 370(6516), 575–579. https://doi.org/10.1126/science.abd5777
+- Konishi, M. (1965). The role of auditory feedback in the control of vocalization in the white-crowned sparrow. _Zeitschrift für Tierpsychologie_, 22(7), 770–783.
+- Marler, P., & Tamura, M. (1962). Song "dialects" in three populations of white-crowned sparrows. _The Condor_, 64(5), 368–377.
+- Marler, P., & Tamura, M. (1964). Culturally transmitted patterns of vocal behavior in sparrows. _Science_, 146(3650), 1483–1486. https://doi.org/10.1126/science.146.3650.1483
+- Rattenborg, N. C., Mandt, B. H., Obermeyer, W. H., Winsauer, P. J., Huber, R., Wikelski, M., & Benca, R. M. (2004). Migratory sleeplessness in the white-crowned sparrow (_Zonotrichia leucophrys gambelii_). _PLoS Biology_, 2(7), e212. https://doi.org/10.1371/journal.pbio.0020212
+
+## Slides and code
+
+<div class="qr-block">
+<img src="`r qr_uri`" alt="QR code linking to these slides">
+<div>
+<p>These slides</p>
+<p class="qr-link">mcanzi.de/advanced_statistics/<wbr>`r lecture_file`</p>
+<p>Code and all lectures</p>
+<p class="qr-link">github.com/mcanzi/advanced_statistics</p>
+</div>
+</div>

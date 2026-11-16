@@ -1,0 +1,373 @@
+---
+title: "Factor analysis in practice"
+subtitle: "A multi-dimensional analysis of web registers"
+author: "Dr Massimiliano Canzi"
+knit: (function(input, ...) rmarkdown::render(input, output_dir = file.path(dirname(input), "..", "docs")))
+output:
+  revealjs::revealjs_presentation:
+    theme: black
+    css: theme-buttercup.css
+    highlight: zenburn
+    mathjax: null
+    incremental: true
+    transition: fade
+    background_transition: fade
+    self_contained: true
+    reveal_options:
+      width: 1050
+      height: 700
+      slideNumber: "c/t"
+      showSlideNumber: all
+      controls: true
+      touch: true
+      transitionSpeed: fast
+      navigationMode: linear
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
+                      comment = "",
+                      fig.width = 10, fig.height = 4.4, out.width = "100%")
+
+library(tidyverse)
+library(psych)
+library(simling)
+
+source("slides_setup.R", local = knitr::knit_global())
+
+options(width = 70, pillar.print_min = 4, pillar.print_max = 4)
+```
+
+# Factor analysis in practice
+
+<style>
+  :root {
+    --footer-text:  "Factor analysis in practice";
+    --qr:           `r qr_css`;
+    --lecture:      `r lecture_label`;
+  }
+</style>
+
+::: {.fact}
+`Did you know:` vervet monkeys give different [alarm calls]{.hl} for leopards, eagles and snakes. Played back with no predator around, the calls made them run into trees, look up or look down.
+
+_Source: Seyfarth, Cheney & Marler (1980), Science_
+:::
+
+## How today works
+
+As in lectures 4 and 6: you work in pairs, the task slides say what to do, checkpoints show what you should get, and the solutions are in the `.Rmd` file of these slides on GitHub.
+
+. . .
+
+Today's data hide a trap that is common in corpus data. See whether you find it before the slides point it out.
+
+## The study {.smaller}
+
+`web_registers` from {simling}: a simulated corpus of 480 English web texts from six registers, modelled on the web register data of Ehret and Taboada (2021). For each text, 16 features per 1,000 words and the mean word length:
+
+| Variable | What it counts | Variable | What it counts |
+|:--|:--|:--|:--|
+| `adverbs` | adverbs | `perfect_aspect` | perfect aspect (_has done_) |
+| `attributive_adjectives` | adjectives before a noun | `prepositions` | prepositions |
+| `conjuncts` | _however_, _therefore_ … | `present_tense` | present tense verbs |
+| `contractions` | _don't_, _it's_ … | `private_verbs` | _think_, _feel_, _know_ … |
+| `first_person` | first person pronouns | `pronouns` | all personal pronouns |
+| `negation` | _not_ | `second_person` | second person pronouns |
+| `nominalisations` | _-tion_, _-ment_, _-ness_, _-ity_ | `third_person` | third person pronouns |
+| `nouns` | nouns | `word_length` | mean word length (letters) |
+| `past_tense` | past tense verbs | | |
+
+## Multi-dimensional analysis
+
+In a [multi-dimensional analysis]{.hl} (Biber, 1988), a factor analysis of linguistic features across many texts finds the [dimensions]{.hl} along which texts vary. Each dimension is a group of features that tend to occur together, interpreted by the communicative function they share. Registers are then compared by their scores on the dimensions.
+
+. . .
+
+Ehret and Taboada (2021) ran such an analysis on 67 features in about 41,600 texts from online registers and news comments. Our corpus is smaller and has fewer features, but a similar structure.
+
+## The data {.smaller}
+
+```{r}
+web_registers
+```
+
+. . .
+
+`?web_registers` gives the true model. Leave it closed until you have finished the tasks.
+
+## Task 1: look at the data
+
+1. How many texts are there per register, and how long are they?
+2. Standardise each feature and compute its mean per register. Which features separate the registers?
+3. Plot the correlation matrix of the 17 features, as in lecture 8
+
+```{r task-1, include = FALSE}
+features <- select(web_registers, adverbs:word_length)
+register_profile <- web_registers |>
+  pivot_longer(adverbs:word_length, names_to = "feature") |>
+  mutate(z = as.numeric(scale(value)), .by = feature) |>
+  summarise(z = mean(z), .by = c(register, feature))
+```
+
+## Checkpoint 1
+
+```{r check-1, echo = FALSE, fig.height = 4.2}
+register_profile |>
+  mutate(feature = factor(feature, levels = rev(names(features)))) |>
+  ggplot(aes(x = register, y = feature, fill = z)) +
+  geom_tile(colour = floor_col) +
+  geom_text(aes(label = sprintf("%.1f", z)), size = 3, colour = mist) +
+  scale_fill_gradient2(low = kingfisher, mid = floor_col, high = pandan, midpoint = 0) +
+  scale_x_discrete(labels = \(x) str_wrap(x, 10)) +
+  labs(x = NULL, y = NULL, fill = "Mean (SD)") +
+  theme(panel.grid = element_blank(), legend.position = "right")
+```
+
+Each cell is a register's mean in standard deviations of the feature. The registers differ on many features at once, and some features rise and fall together.
+
+# Checking the data
+
+::: {.fact}
+`Did you know:` adult vervets give alarm calls mainly to leopards, martial eagles and pythons. Infants give eagle alarms to [many kinds of birds]{.hl}, and they get better at classifying predators with age and experience.
+
+_Source: Seyfarth, Cheney & Marler (1980), Science_
+:::
+
+## Task 2: check the correlation matrix
+
+A factor analysis needs features that share variance. Multi-dimensional analyses usually report two checks. Run both, and read every message and warning R prints: what do they tell you?
+
+```{r, eval = FALSE}
+KMO(features)
+cortest.bartlett(cor(features), n = nrow(features))
+```
+
+- The [Kaiser–Meyer–Olkin]{.hl} (KMO) measure compares correlations with partial correlations. Kaiser (1974) called values in the 0.60s mediocre and below 0.50 unacceptable
+- [Bartlett's test]{.hl} asks whether the correlation matrix differs from one in which all correlations are zero (Bartlett, 1950)
+
+## Task 3: find the problem
+
+A correlation matrix that cannot be inverted has an [eigenvalue]{.hl} of zero, which means that one feature is a linear combination of others. The eigenvector of that eigenvalue shows which features are involved.
+
+```{r, eval = FALSE}
+e <- eigen(cor(features))
+min(e$values)
+round(e$vectors[, which.min(e$values)], 2)
+```
+
+Which features have weights that are not zero? Look at their values in the data, and fix the problem.
+
+```{r task-3, include = FALSE}
+e_all <- eigen(cor(features))
+```
+
+## Checkpoint 2
+
+```{r check-2, echo = FALSE, fig.height = 3.4}
+tibble(feature = names(features), weight = e_all$vectors[, which.min(e_all$values)]) |>
+  mutate(feature = fct_reorder(feature, abs(weight))) |>
+  ggplot(aes(x = weight, y = feature, fill = abs(weight) > 0.01)) +
+  geom_col(width = 0.65, show.legend = FALSE) +
+  scale_fill_manual(values = c(muted, kingfisher)) +
+  labs(x = "Weight in the eigenvector of the smallest eigenvalue", y = NULL)
+```
+
+The smallest eigenvalue is `r format(signif(min(e_all$values), 2), scientific = TRUE)`, zero up to rounding error. Only four features have weights in its eigenvector: `pronouns` is the sum of `first_person`, `second_person` and `third_person`.
+
+## Redundant features
+
+A feature computed from other features adds no information and makes the correlation matrix [singular]{.hl}. A singular matrix has no inverse, so KMO, Bartlett's test, maximum likelihood estimation and some methods for factor scores fail or give meaningless results. `fa()` may still return a solution, with warnings that are easy to overlook.
+
+. . .
+
+Redundant features are common in corpus data: totals next to their parts, proportions that add up to one, or the same construction counted from two different tags. Keep the parts or the total, depending on the research question.
+
+## Task 4: how many dimensions?
+
+```{r, eval = FALSE}
+features <- select(web_registers, adverbs:word_length, -pronouns)
+```
+
+1. Run `KMO()` and Bartlett's test again
+2. Run a parallel analysis, as in lecture 8, and draw the scree plot with the eigenvalues of random data
+
+```{r task-4, include = FALSE}
+features <- select(web_registers, adverbs:word_length, -pronouns)
+eig <- eigen(cor(features))$values
+set.seed(1)
+eig_random <- replicate(100, {
+  noise <- matrix(rnorm(nrow(features) * ncol(features)), ncol = ncol(features))
+  eigen(cor(noise))$values
+})
+n_dims <- which(eig < rowMeans(eig_random))[1] - 1
+```
+
+## Checkpoint 3
+
+```{r check-3, echo = FALSE, fig.height = 3.2}
+tibble(dimension = seq_along(eig), Observed = eig, `Random data` = rowMeans(eig_random)) |>
+  pivot_longer(-dimension, names_to = "data", values_to = "eigenvalue") |>
+  ggplot(aes(x = dimension, y = eigenvalue, colour = data, shape = data)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  scale_colour_manual(values = c(kingfisher, pandan)) +
+  scale_x_continuous(breaks = seq_along(eig)) +
+  labs(x = "Dimension", y = "Eigenvalue", colour = NULL, shape = NULL) +
+  theme(legend.position = "right")
+```
+
+Overall KMO without `pronouns`: `r round(KMO(features)$MSA, 2)`. Parallel analysis keeps `r n_dims` dimensions.
+
+# Dimensions
+
+::: {.fact}
+`Did you know:` West African green monkeys, close relatives of vervets, have no alarm call for birds of prey. When researchers flew a [drone]{.hl} over them, they gave calls very similar to the eagle alarms of East African vervets.
+
+_Source: Wegdell, Hammerschmidt & Fischer (2019), Nature Ecology & Evolution_
+:::
+
+## Task 5: fit and name the dimensions
+
+```{r, eval = FALSE}
+mda <- fa(features, nfactors = ___, rotate = "promax", fm = "minres")
+print(mda$loadings, cutoff = 0.3, sort = TRUE)
+round(mda$Phi, 2)
+```
+
+Biber (1988) and most later multi-dimensional analyses use `promax`, an oblique rotation.
+
+- For each factor, list the features with positive and with negative loadings. What do texts with high scores do? And texts with low scores? Give each dimension a name that covers both poles
+- Which features load on more than one factor, and how strongly are the factors correlated?
+
+```{r task-5, include = FALSE}
+mda <- fa(features, nfactors = 3, rotate = "promax", fm = "minres")
+mda_loadings <- unclass(mda$loadings) |>
+  as_tibble(rownames = "feature") |>
+  pivot_longer(-feature, names_to = "factor", values_to = "loading")
+feature_order <- mda_loadings |>
+  slice_max(abs(loading), by = feature) |>
+  arrange(factor, desc(loading)) |>
+  pull(feature)
+```
+
+## Checkpoint 4
+
+```{r check-4, echo = FALSE, fig.height = 4.3}
+mda_loadings |>
+  mutate(feature = factor(feature, levels = rev(feature_order)),
+         label = if_else(abs(loading) >= 0.3, sprintf("%.2f", loading), "")) |>
+  ggplot(aes(x = factor, y = feature, fill = loading)) +
+  geom_tile(colour = floor_col) +
+  geom_text(aes(label = label), size = 3.6, colour = mist) +
+  scale_fill_gradient2(low = kingfisher, mid = floor_col, high = pandan, midpoint = 0, limits = c(-1, 1)) +
+  labs(x = NULL, y = NULL, fill = "Loading") +
+  theme(panel.grid = element_blank(), legend.position = "right")
+```
+
+Loadings of at least 0.3 in absolute value are printed. The order of `MR1` to `MR3` depends on the variance each factor explains, so yours may differ.
+
+## Names from the literature
+
+Ehret and Taboada (2021) found three comparable dimensions in their web data and called them involved-evaluative versus informational, informational-argumentative, and narrative-descriptive versus instructional. Biber (1988) interpreted his first two dimensions as involved versus informational production and as narrative versus non-narrative discourse.
+
+. . .
+
+- How close are your names to these?
+- Now open `?web_registers` and compare your loadings with the true ones. Which loadings did the factor analysis underestimate, and why could rare features such as `conjuncts` come out weaker?
+
+# Registers on the dimensions
+
+::: {.fact}
+`Did you know:` when researchers later played a recording of the drone, some green monkeys [searched the sky]{.hl} and hid. They had learned what the new sound meant.
+
+_Source: Wegdell, Hammerschmidt & Fischer (2019), Nature Ecology & Evolution_
+:::
+
+## Task 6: dimension scores
+
+`fa()` also gives each text a score on each factor (`mda$scores`).
+
+```{r, eval = FALSE}
+scores <- bind_cols(select(web_registers, text, register), as_tibble(mda$scores))
+```
+
+1. Compute the mean and standard deviation of the scores per register on each dimension
+2. Plot the registers on each dimension. Which register is the most involved? Which is the most narrative?
+
+```{r task-6, include = FALSE}
+scores <- bind_cols(select(web_registers, text, register), as_tibble(mda$scores))
+register_scores <- scores |>
+  pivot_longer(starts_with("MR"), names_to = "dimension", values_to = "score") |>
+  summarise(mean = mean(score), sd = sd(score), .by = c(register, dimension))
+```
+
+## Checkpoint 5
+
+```{r check-5, echo = FALSE, fig.height = 3.4}
+register_scores |>
+  mutate(register = fct_rev(register)) |>
+  ggplot(aes(x = mean, y = register)) +
+  geom_vline(xintercept = 0, colour = muted, linetype = "dashed") +
+  geom_errorbar(aes(xmin = mean - sd, xmax = mean + sd), width = 0.25, colour = kingfisher) +
+  geom_point(colour = kingfisher, size = 3) +
+  facet_wrap(~ dimension) +
+  labs(x = "Mean score, ± 1 SD", y = NULL)
+```
+
+The registers overlap on every dimension, even where their means are far apart, because texts within a register vary.
+
+## Task 7: report
+
+Write a short methods and results paragraph. It should say:
+
+- how many texts and features went into the analysis, and why `pronouns` did not
+- KMO, the number of factors and how you chose it, the extraction method, the rotation and the cutoff for salient loadings
+- the dimensions with their names, and where the registers fall on them
+
+. . .
+
+Then swap with another pair: could a reviewer object to anything in theirs?
+
+## If you finish early
+
+- Rates per 1,000 words are skewed, and rare features are noisy in short texts. Refit with `log(x + 0.5)` for every feature except `word_length`. Do the loadings get closer to those in `?web_registers`?
+- Compute dimension scores as Biber (1988) did: standardise the features, add up those with salient positive loadings on a dimension and subtract those with salient negative loadings. How closely do they follow `mda$scores`?
+
+. . .
+
+To prepare for next week, plot every text on the first two dimensions, coloured by register. Do the registers form groups?
+
+## Summary
+
+::: {.takeaway}
+- Check the correlation matrix before a factor analysis: KMO, Bartlett's test and its smallest eigenvalue
+- A feature that is the sum of other features makes the matrix [singular]{.hl}. Find it through the eigenvector of the zero eigenvalue, and remove the total or its parts
+- Name a dimension from both of its poles, the features with positive and with negative loadings
+- In a multi-dimensional analysis, registers are compared through their [dimension scores]{.hl}, which overlap even when the means differ
+:::
+
+## References {.refs}
+
+- Bartlett, M. S. (1950). Tests of significance in factor analysis. _British Journal of Psychology, Statistical Section_, 3(2), 77–85.
+- Biber, D. (1988). _Variation across speech and writing_. Cambridge University Press.
+- [Ehret, K., & Taboada, M. (2021). Characterising online news comments: A multi-dimensional cruise through online registers. _Frontiers in Artificial Intelligence_, 4, 643770. https://doi.org/10.3389/frai.2021.643770]{.hl}
+- Kaiser, H. F. (1974). An index of factorial simplicity. _Psychometrika_, 39(1), 31–36.
+- Revelle, W. (`r format(packageDate("psych"), "%Y")`). _psych: Procedures for psychological, psychometric, and personality research_ [R package]. Northwestern University. https://CRAN.R-project.org/package=psych
+
+## Sources of the animal facts {.refs}
+
+- Seyfarth, R. M., Cheney, D. L., & Marler, P. (1980). Monkey responses to three different alarm calls: Evidence of predator classification and semantic communication. _Science_, 210(4471), 801–803. https://doi.org/10.1126/science.7433999
+- Wegdell, F., Hammerschmidt, K., & Fischer, J. (2019). Conserved alarm calls but rapid auditory learning in monkey responses to novel flying objects. _Nature Ecology & Evolution_, 3(7), 1039–1042. https://doi.org/10.1038/s41559-019-0903-5
+
+## Slides and code
+
+<div class="qr-block">
+<img src="`r qr_uri`" alt="QR code linking to these slides">
+<div>
+<p>These slides</p>
+<p class="qr-link">mcanzi.de/advanced_statistics/<wbr>`r lecture_file`</p>
+<p>Code and all lectures</p>
+<p class="qr-link">github.com/mcanzi/advanced_statistics</p>
+</div>
+</div>
