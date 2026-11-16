@@ -56,7 +56,7 @@ _Source: Seyfarth, Cheney & Marler (1980), Science_
 
 ## How today works
 
-As in lectures 4 and 6: you work in pairs, the task slides say what to do, checkpoints show what you should get, and the solutions are in the `.Rmd` file of these slides on GitHub.
+As in lectures 4 and 6: you work in pairs, the task slides say what to do, checkpoints show what you should get, and the solutions are in the `.Rmd` file of these slides on GitHub. The tutorial sheet for today: `konstats::get_tutorial(9, ".", course = "advanced")`.
 
 . . .
 
@@ -129,7 +129,7 @@ Each cell is a register's mean in standard deviations of the feature. The regist
 # Checking the data
 
 ::: {.fact}
-`Did you know:` adult vervets give alarm calls mainly to leopards, martial eagles and pythons. Infants give eagle alarms to [many kinds of birds]{.hl}, and they get better at classifying predators with age and experience.
+`Did you know:` adult vervets give alarm calls mainly to leopards, martial eagles and pythons. Infants give [eagle alarms]{.hl} to many kinds of birds, and they get better at classifying predators with age and experience.
 
 _Source: Seyfarth, Cheney & Marler (1980), Science_
 :::
@@ -279,7 +279,7 @@ Ehret and Taboada (2021) found three comparable dimensions in their web data and
 # Registers on the dimensions
 
 ::: {.fact}
-`Did you know:` when researchers later played a recording of the drone, some green monkeys [searched the sky]{.hl} and hid. They had learned what the new sound meant.
+`Did you know:` when researchers later played a [recording]{.hl} of the drone, some green monkeys searched the sky and hid. They had learned what the new sound meant.
 
 _Source: Wegdell, Hammerschmidt & Fischer (2019), Nature Ecology & Evolution_
 :::
@@ -336,7 +336,7 @@ Then swap with another pair: could a reviewer object to anything in theirs?
 
 . . .
 
-To prepare for next week, plot every text on the first two dimensions, coloured by register. Do the registers form groups?
+To prepare for the cluster analysis practical in lecture 11, plot every text on the first two dimensions, coloured by register. Do the registers form groups?
 
 ## Summary
 

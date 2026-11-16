@@ -215,7 +215,7 @@ The same 10 basis functions with four smoothing parameters. A large penalty push
 # Fitting GAMs with `{mgcv}`
 
 ::: {.fact}
-`Did you know:` over 11 years, [11 song types]{.hl} spread across the humpback whale populations of the South Pacific, usually starting off eastern Australia and reaching French Polynesia within about two years.
+`Did you know:` over 11 years, 11 [song types]{.hl} spread across the humpback whale populations of the South Pacific, usually starting off eastern Australia and reaching French Polynesia within about two years.
 
 _Source: Garland et al. (2011), Current Biology_
 :::
@@ -240,6 +240,7 @@ round(summary(m1)$s.table, 2)
 - The [parametric]{.hl} table works as in `lm()`: the intercept is the mean F2 of the English trajectories, and `l1Italian` is how much higher or lower the Italian trajectories are on average
 - The [smooth]{.hl} table has one row per smooth: `edf` close to 9 means a very wiggly curve, close to 1 a straight line
 
+. . .
 
 The F test asks whether a smooth is flat, so two identical curves would both come out significant. Testing whether two smooths differ needs a different model, later in this lecture.
 
@@ -273,6 +274,7 @@ k.check(m1)
 - `k'` is the number of basis functions available; `edf` is how many the smooth used
 - A [k-index]{.hl} below 1 with a small p-value suggests there is pattern left in the residuals that more basis functions could capture
 
+. . .
 
 To be sure, raise `k` (for example to 15) and refit. If the curves and the edf barely change, `k` was high enough.
 
@@ -344,7 +346,7 @@ m2_bin <- bam(f2 ~ s(time, k = 10) + s(time, by = is_italian, k = 10),
               data = price, method = "ML")
 ```
 
-- In a [binary smooth]{.hl}, the `by` variable is numeric (0 or 1), so the smooth is not centred, so a single term covers both the difference in height and the difference in shape
+- In a [binary smooth]{.hl}, the `by` variable is numeric (0 or 1). The smooth is therefore not centred, and a single term covers both the difference in height and the difference in shape
 - Its p-value tests both differences at once, which is often the question of interest
 
 ## Which test to report?

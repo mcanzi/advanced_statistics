@@ -1,0 +1,303 @@
+---
+title: "Cluster analysis in practice"
+subtitle: "Tutorial 11"
+author: "Dr Massimiliano Canzi"
+output:
+  html_document:
+    theme: darkly
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+These exercises follow the tasks on the slides of lecture 11, "Cluster analysis in practice". Write your code in the empty chunks, and answer the questions in a sentence or two under each chunk. Section 5 goes beyond the slides.
+
+## Setup
+
+```{r}
+library(tidyverse)
+library(psych)
+library(cluster)
+library(simling)
+```
+
+## The data
+
+`web_registers` holds the 480 web texts from six registers of lecture 9. The factor analysis from that lecture, without the redundant `pronouns`, gives each text a score on three dimensions:
+
+```{r}
+features <- select(web_registers, adverbs:word_length, -pronouns)
+mda <- fa(features, nfactors = 3, rotate = "promax", fm = "minres")
+scores <- bind_cols(select(web_registers, text, register), as_tibble(mda$scores))
+scores
+```
+
+The research question: do the texts fall into groups by their linguistic features, and do those groups match the six registers? `?web_registers` gives the true model. Leave it closed until section 5.
+
+---
+
+## 1. Look at the scores
+
+### 1.1 Name the dimensions
+
+Look at the loadings with `print(mda$loadings, cutoff = 0.3, sort = TRUE)`, and give each dimension the name you gave it in lecture 9.
+
+::: solution
+
+```{r}
+print(mda$loadings, cutoff = 0.3, sort = TRUE)
+```
+
+:::
+
+### 1.2 Texts on two dimensions
+
+Plot every text on two of the dimensions, coloured by register. Do the registers form separate groups?
+
+::: solution
+
+```{r}
+ggplot(scores, aes(x = MR1, y = MR3, colour = register)) +
+  geom_point(alpha = 0.7) +
+  coord_equal() +
+  labs(colour = NULL)
+```
+
+The registers have their own areas, but they overlap, and forum discussions and personal blogs share most of theirs.
+
+:::
+
+### 1.3 Scales
+
+Compute the standard deviation of each dimension. Do the scores need standardising before clustering?
+
+::: solution
+
+```{r}
+summarise(scores, across(starts_with("MR"), sd))
+```
+
+The standard deviations are a little below 1 and close to each other, so the scores are on similar scales already.
+
+:::
+
+---
+
+## 2. Clustering the texts
+
+### 2.1 Cluster the features
+
+Fit k-means with four clusters on the 16 features directly, with `set.seed(1)` and `nstart = 25`. Compute the mean of each feature per cluster. Which features differ most between the clusters?
+
+::: solution
+
+```{r}
+set.seed(1)
+km_raw <- kmeans(features, centers = 4, nstart = 25)
+round(km_raw$centers, 1)
+```
+
+:::
+
+### 2.2 The trap
+
+Compute the standard deviation of each feature, and compare it with your answer to exercise 2.1. What has happened, and how would you avoid it?
+
+::: solution
+
+```{r}
+sort(map_dbl(features, sd), decreasing = TRUE)
+```
+
+`first_person` and `nouns` vary most, so they decide the distances on the raw features. Standardise the features with `scale()`, or cluster the dimension scores.
+
+:::
+
+### 2.3 How many clusters?
+
+From now on, cluster the dimension scores:
+
+```{r}
+S <- as.matrix(select(scores, starts_with("MR")))
+```
+
+Compute the within-cluster sum of squares of k-means for k from 1 to 8, and the average silhouette width for k from 2 to 8, as in lecture 10. Plot both. Which k would you choose? How strong is the structure?
+
+::: solution
+
+```{r}
+k_choice <- tibble(k = 1:8) |>
+  mutate(wss = map_dbl(k, \(k) { set.seed(1); kmeans(S, k, nstart = 25)$tot.withinss }),
+         sil = map_dbl(k, \(k) {
+           if (k == 1) return(NA_real_)
+           set.seed(1)
+           cl <- kmeans(S, k, nstart = 25)$cluster
+           mean(silhouette(cl, dist(S))[, "sil_width"])
+         }))
+k_choice
+k_choice |>
+  pivot_longer(c(wss, sil), names_to = "measure", values_to = "value") |>
+  filter(!is.na(value)) |>
+  ggplot(aes(x = k, y = value)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~ measure, scales = "free_y")
+```
+
+There is no clear elbow, and the average silhouette width stays around 0.3 for every k: weak structure.
+
+:::
+
+---
+
+## 3. Clusters and registers
+
+### 3.1 Three clusters
+
+Fit k-means with three clusters on `S`, with `set.seed(1)` and `nstart = 25`, and cross-tabulate the clusters with the registers. Which registers share a cluster, and which registers are split?
+
+::: solution
+
+```{r}
+set.seed(1)
+km3 <- kmeans(S, centers = 3, nstart = 25)
+scores <- mutate(scores, cluster = factor(km3$cluster))
+table(scores$register, scores$cluster)
+```
+
+:::
+
+### 3.2 Ward's method
+
+Fit a Ward hierarchical clustering (`method = "ward.D2"`) on the same scores, cut it into three clusters, and cross-tabulate it with the k-means clusters. Do the two methods agree?
+
+::: solution
+
+```{r}
+hc <- hclust(dist(S), method = "ward.D2")
+ward3 <- cutree(hc, k = 3)
+table(kmeans = km3$cluster, ward = ward3)
+```
+
+:::
+
+### 3.3 Cluster profiles
+
+Compute the mean score of each k-means cluster on each dimension, and plot these profiles, with one line per cluster. Name each cluster from its profile. Would these names fit the registers that make up each cluster?
+
+::: solution
+
+```{r}
+profiles <- scores |>
+  pivot_longer(starts_with("MR"), names_to = "dimension", values_to = "score") |>
+  summarise(mean = mean(score), .by = c(cluster, dimension))
+ggplot(profiles, aes(x = dimension, y = mean, colour = cluster, group = cluster)) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_line() +
+  geom_point(size = 3) +
+  labs(x = NULL, y = "Mean score", colour = "Cluster")
+```
+
+:::
+
+---
+
+## 4. How stable are the clusters?
+
+### 4.1 Two halves
+
+Split the texts at random into two halves, and fit k-means with three clusters to each half. Assign all 480 texts to the nearest centre of each solution with `nearest()`, and cross-tabulate the two assignments.
+
+```{r}
+set.seed(3)
+half <- sample(rep(1:2, length.out = nrow(S)))
+nearest <- function(X, centres) apply(X, 1, \(x) which.min(colSums((t(centres) - x)^2)))
+```
+
+::: solution
+
+```{r}
+set.seed(1)
+km_a <- kmeans(S[half == 1, ], centers = 3, nstart = 25)
+set.seed(1)
+km_b <- kmeans(S[half == 2, ], centers = 3, nstart = 25)
+table(first = nearest(S, km_a$centers), second = nearest(S, km_b$centers))
+```
+
+:::
+
+### 4.2 Three or six?
+
+Repeat exercise 4.1 with six clusters. For each cluster of the first half, what share of its texts does the second half put together in one cluster? Which solution is more stable?
+
+::: solution
+
+```{r}
+agreement <- function(k) {
+  set.seed(1)
+  a <- kmeans(S[half == 1, ], centers = k, nstart = 25)
+  set.seed(1)
+  b <- kmeans(S[half == 2, ], centers = k, nstart = 25)
+  tab <- table(nearest(S, a$centers), nearest(S, b$centers))
+  sum(apply(tab, 1, max)) / sum(tab)
+}
+c(three = agreement(3), six = agreement(6))
+```
+
+:::
+
+### 4.3 Report
+
+Write a short methods and results paragraph: what was clustered and why you did not cluster the raw features, the method, its settings and the seed, how you chose k with the silhouette widths, how the clusters relate to the registers, how you named them, and how stable they were.
+
+---
+
+## 5. Beyond the slides
+
+### 5.1 The true register means
+
+Open `?web_registers` and look at the true register means on the three dimensions. Which registers should be hardest to tell apart? Does that match your cross-table from exercise 3.1?
+
+### 5.2 A tree of registers
+
+Compute the mean dimension scores of the six registers, and cluster these six rows with `hclust()`. Draw the dendrogram with `plot()`. Which registers merge first?
+
+::: solution
+
+```{r}
+register_means <- scores |>
+  summarise(across(starts_with("MR"), mean), .by = register)
+hc_reg <- hclust(dist(select(register_means, starts_with("MR"))), method = "average")
+plot(hc_reg, labels = register_means$register, xlab = "", sub = "")
+```
+
+:::
+
+### 5.3 k-medoids
+
+Fit `pam()` from `{cluster}` with three clusters on `S`, and compare it with the k-means clusters. `pam()` also returns the average silhouette width in `$silinfo$avg.width`.
+
+::: solution
+
+```{r}
+pam3 <- pam(S, k = 3)
+table(kmeans = km3$cluster, pam = pam3$clustering)
+pam3$silinfo$avg.width
+```
+
+:::
+
+### 5.4 Standardised features
+
+Cluster the standardised features (`scale(features)`) into three clusters, and cross-tabulate the result with the clusters on the dimension scores. How similar are they?
+
+::: solution
+
+```{r}
+set.seed(1)
+km_std <- kmeans(scale(features), centers = 3, nstart = 25)
+table(scores = km3$cluster, features = km_std$cluster)
+```
+
+:::

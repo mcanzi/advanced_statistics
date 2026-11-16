@@ -63,6 +63,7 @@ Today you run a complete GAMM analysis yourselves, in pairs, on a new data set.
 - Each task slide says what to do, with code to complete where `___` appears
 - A checkpoint slide after some tasks shows what you should get
 - The solutions are in the `.Rmd` file of these slides, on GitHub. Try first; look only when you are stuck
+- The tutorial sheet has the same tasks, with an empty chunk for each answer and a few more that go beyond the slides. `konstats::get_tutorial(4, ".", course = "advanced")` copies it into your project folder
 
 ## The study
 
@@ -164,7 +165,7 @@ resid_acf <- function(res, traj, max_lag = 8) {
 }
 ```
 
-The same function as in lecture 3. Compute the autocorrelation of the residuals of `m_gam` within trajectories, and plot it against the lag.
+The same function as in lecture 3, also in `{konstats}` as `konstats::resid_acf()`. Compute the autocorrelation of the residuals of `m_gam` within trajectories, and plot it against the lag.
 
 ## Task 4: random smooths
 
@@ -228,7 +229,7 @@ Your `rho` should be close to `r round(rho, 2)`. With the AR1 model, little auto
 # Results
 
 ::: {.fact}
-`Did you know:` goats can tell human facial expressions apart. Shown photos of the same unfamiliar person looking happy and angry, 20 goats preferred to approach and explore the [happy]{.hl} faces, mainly when these were on the right.
+`Did you know:` goats can tell human [facial expressions]{.hl} apart. Shown photos of the same unfamiliar person looking happy and angry, 20 goats preferred to approach and explore the happy faces, mainly when these were on the right.
 
 _Source: Nawroth et al. (2018), Royal Society Open Science_
 :::

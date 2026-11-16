@@ -50,7 +50,7 @@ options(width = 70, pillar.print_min = 4, pillar.print_max = 4)
 </style>
 
 ::: {.fact}
-`Did you know:` the peacock mantis shrimp smashes snail shells with a club that reaches [14 to 23 metres per second]{.hl}. The energy for the strike is stored in a saddle-shaped spring in its limb.
+`Did you know:` the peacock mantis shrimp smashes snail shells with a [club]{.hl} that reaches 14 to 23 metres per second. The energy for the strike is stored in a saddle-shaped spring in its limb.
 
 _Source: Patek, Korff & Caldwell (2004), Nature_
 :::
@@ -134,7 +134,7 @@ A power analysis based on a published effect size then promises more power than 
 # Power by simulation
 
 ::: {.fact}
-`Did you know:` peak impact forces of peacock mantis shrimp strikes reached [1,501 newtons]{.hl} in one study, thousands of times the animal's body weight.
+`Did you know:` peak [impact forces]{.hl} of peacock mantis shrimp strikes reached 1,501 newtons in one study, thousands of times the animal's body weight.
 
 _Source: Patek & Caldwell (2005), Journal of Experimental Biology_
 :::
@@ -198,7 +198,7 @@ Writing the simulation also forces us to state every assumption about effect siz
 # Power with `{simr}`
 
 ::: {.fact}
-`Did you know:` some mantis shrimp have [12 types]{.hl} of colour photoreceptors, against three in humans. In tests, they still told colours apart worse than humans do.
+`Did you know:` some mantis shrimp have 12 types of colour [photoreceptors]{.hl}, against three in humans. In tests, they still told colours apart worse than humans do.
 
 _Source: Thoen, How, Chiou & Marshall (2014), Science_
 :::
@@ -370,7 +370,7 @@ How would you answer? What could you report instead that would help the reader j
 
 - The estimate with its [confidence interval]{.hl}: it shows which effect sizes the data are compatible with
 - The power analysis you ran before the study, with the effect size you chose and why
-- A sensitivity analysis: the smallest effect the design had 80% power to detect. It uses the design and assumed variances, not the observed effect
+- A sensitivity analysis: the smallest effect the design had 80% power to detect. It uses only the design and the assumed variances
 
 ## Reporting a power analysis {.smaller}
 

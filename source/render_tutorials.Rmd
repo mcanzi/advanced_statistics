@@ -1,0 +1,133 @@
+---
+title: "Render all tutorials"
+output: html_document
+---
+
+Knit this file, or run its chunks, to make the participants' sheet of every tutorial in `tutorials/`. The practical lectures (4, 6, 9 and 11) have a tutorial each, named like the lecture (`04_gamm_practical.Rmd`), with the lecture's title as `title` and `Tutorial 4` as `subtitle`. In class I use the slides of the practical lecture; the tutorial has the same tasks as exercises, for participants to work through on their own, and a last section that goes beyond the slides.
+
+Each tutorial is written once, with its solutions, and this file makes:
+
+- a check: the whole tutorial, solutions included, is knitted in a temporary folder, so every solution runs from top to bottom. Rendering stops at the first tutorial that fails, and the error names it;
+- the participants' sheet, `docs/tutorials/04_gamm_practical.Rmd`: the same file without the solutions, with an empty chunk where each piece of solution code was.
+
+In a tutorial, everything inside a `::: solution` block counts as solution, text included. Everything else appears on the sheet, including hints and code that participants get, such as a helper function or code with `___` to complete. Classes on headings, such as `{.smaller}`, are left out of the sheet. Unlike the Statistics tutorials, these have no slides of their own and no weekly assignment.
+
+The sheets are also part of `{konstats}`, in `inst/sheets/advanced`, so that `konstats::get_tutorial(4, ".", course = "advanced")` copies them. After changing a tutorial, copy its sheet from `docs/tutorials` to the konstats repository.
+
+## Reading a tutorial
+
+`read_tutor()` splits a tutorial into its YAML header and its body. `classify()` records for each line of the body whether it belongs to a code chunk and to which solution block (0 for none), and it marks the lines that open or close a solution block.
+
+```{r reading}
+read_tutor <- function(path) {
+  lines <- readLines(path, encoding = "UTF-8")
+  fences <- which(lines == "---")
+  list(yaml = lines[seq_len(fences[2])], body = lines[-seq_len(fences[2])])
+}
+
+classify <- function(body) {
+  n <- length(body)
+  chunk <- logical(n)
+  sol <- integer(n)
+  fence <- logical(n)
+  in_chunk <- FALSE
+  in_sol <- FALSE
+  block <- 0L
+  for (i in seq_len(n)) {
+    line <- body[i]
+    if (!in_chunk && grepl("^:::+ *\\{?\\.?solution", line)) {
+      block <- block + 1L
+      in_sol <- TRUE
+      fence[i] <- TRUE
+      sol[i] <- block
+      next
+    }
+    if (!in_chunk && in_sol && grepl("^:::+ *$", line)) {
+      in_sol <- FALSE
+      fence[i] <- TRUE
+      sol[i] <- block
+      next
+    }
+    if (grepl("^```", line)) {
+      chunk[i] <- TRUE
+      in_chunk <- !in_chunk
+    } else {
+      chunk[i] <- in_chunk
+    }
+    if (in_sol) sol[i] <- block
+  }
+  data.frame(line = body, chunk = chunk, sol = sol, fence = fence)
+}
+
+squeeze <- function(x) {
+  blank <- x == ""
+  x[!(blank & c(FALSE, head(blank, -1)))]
+}
+```
+
+## The participants' sheet
+
+Each solution block becomes one empty chunk if it contains code, and disappears if it is only text.
+
+```{r sheet}
+sheet_lines <- function(d) {
+  out <- character(0)
+  i <- 1
+  while (i <= nrow(d)) {
+    if (d$sol[i] > 0) {
+      rows <- which(d$sol == d$sol[i])
+      if (any(grepl("^```\\{r", d$line[rows]))) out <- c(out, "```{r}", "", "```")
+      i <- max(rows) + 1
+    } else {
+      line <- d$line[i]
+      if (!d$chunk[i] && grepl("^#+ ", line)) line <- sub(" *\\{[^}]*\\} *$", "", line)
+      out <- c(out, line)
+      i <- i + 1
+    }
+  }
+  squeeze(out)
+}
+```
+
+## Making the sheets
+
+`check_tutorial()` knits the full tutorial in a fresh R session, in a temporary folder, and stops with the name of the tutorial if anything fails. `make_tutorial()` runs the check and writes the sheet.
+
+```{r make}
+check_tutorial <- function(path) {
+  tmp <- tempfile("tutorial_")
+  dir.create(tmp)
+  file.copy(path, tmp)
+  ok <- tryCatch({
+    xfun::Rscript_call(rmarkdown::render,
+                       list(input = file.path(tmp, basename(path)), output_dir = tmp, quiet = TRUE))
+    TRUE
+  }, error = function(e) conditionMessage(e))
+  unlink(tmp, recursive = TRUE)
+  if (!isTRUE(ok)) stop(basename(path), " does not knit: ", ok, call. = FALSE)
+}
+
+make_tutorial <- function(path, out_dir) {
+  check_tutorial(path)
+  tutor <- read_tutor(path)
+  sheet <- c(tutor$yaml, sheet_lines(classify(tutor$body)))
+  target <- file.path(out_dir, basename(path))
+  writeLines(sheet, target, useBytes = TRUE)
+  target
+}
+```
+
+```{r render, message = TRUE}
+out_dir <- file.path("..", "docs", "tutorials")
+dir.create(out_dir, showWarnings = FALSE)
+tutorials <- list.files("tutorials", pattern = "^[0-9]{2}_.*\\.Rmd$", full.names = TRUE)
+for (tutorial in tutorials) {
+  message("Checking and writing ", basename(tutorial))
+  make_tutorial(tutorial, out_dir)
+}
+```
+
+```{r rendered}
+sheets <- file.path(out_dir, basename(tutorials))
+knitr::kable(data.frame(sheet = basename(sheets), updated = format(file.mtime(sheets), "%d %b %Y %H:%M")))
+```

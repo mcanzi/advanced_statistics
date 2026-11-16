@@ -53,7 +53,7 @@ options(width = 70, pillar.print_min = 4, pillar.print_max = 4)
 </style>
 
 ::: {.fact}
-`Did you know:` the arctic fox has the most insulating fur measured in any mammal. Its lower critical temperature is below [−40 °C]{.hl}: above that, it keeps warm without raising its metabolic rate.
+`Did you know:` the arctic fox has the most insulating fur measured in any mammal. Its [lower critical temperature]{.hl} is below −40 °C: above that, it keeps warm without raising its metabolic rate.
 
 _Source: Prestrud (1991), Arctic_
 :::
@@ -64,7 +64,7 @@ You already know how to build a plot in `ggplot2`, and the details are one searc
 
 . . .
 
-A figure is part of the evidence. Readers should be able to judge it for themselves, including those who print in greyscale or see colours differently.
+A figure is part of the evidence, and readers should be able to judge it for themselves, including those who print in greyscale or see colours differently.
 
 ## Today
 
@@ -84,7 +84,7 @@ lex <- lexical_decision_l2
 # Show the data
 
 ::: {.fact}
-`Did you know:` an arctic fox's winter fur is nearly [twice as long]{.hl} as its summer fur.
+`Did you know:` an arctic fox's [winter fur]{.hl} is nearly twice as long as its summer fur.
 
 _Source: Underwood & Reynolds (1980), report for the Office of Naval Research_
 :::
@@ -212,7 +212,7 @@ In the caption or axis titles, tell the reader:
 # Clutter and colour
 
 ::: {.fact}
-`Did you know:` arctic foxes come in two genetically fixed colour phases. The [white]{.hl} phase is white only in winter; the [blue]{.hl} phase is dark all year.
+`Did you know:` arctic foxes come in two genetically fixed [colour phases]{.hl}. The white phase is white only in winter; the blue phase is dark all year.
 
 _Sources: Prestrud (1991), Arctic; Norwegian Polar Institute_
 :::
@@ -480,7 +480,7 @@ theme_paper <- function(base_size = 11, base_family = "") {
 }
 ```
 
-Write the [theme function]{.hl} once, keep it in a file, and `source()` it at the top of every script for the same paper. `theme_set(theme_paper())` makes it the default.
+Write the [theme function]{.hl} once, keep it in a file, and `source()` it at the top of every script for the same paper. `theme_set(theme_paper())` makes it the default. `{konstats}` has this theme as `konstats::theme_paper()`.
 
 ## The theme in use {.smaller}
 

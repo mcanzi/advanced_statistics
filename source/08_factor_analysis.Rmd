@@ -138,7 +138,7 @@ Answers from 1 (left) to 5 (right). About 2% of the answers are missing, and `?l
 # The factor model
 
 ::: {.fact}
-`Did you know:` young male white-crowned sparrows learn their dialect from older males in about their first [100 days]{.hl}. In the laboratory, they could be taught the dialect of another population.
+`Did you know:` young male white-crowned sparrows learn their [dialect]{.hl} from older males in about their first 100 days. In the laboratory, they could be taught the dialect of another population.
 
 _Source: Marler & Tamura (1964), Science_
 :::
@@ -265,7 +265,7 @@ A [scree plot]{.hl} shows the eigenvalues in order. Cattell (1966) suggested kee
 # Fitting and rotating
 
 ::: {.fact}
-`Did you know:` in captivity, white-crowned sparrows of a migratory subspecies slept about [two-thirds less]{.hl} during the migration season, and still did well in a learning task. Outside that season, one night of restricted sleep was enough to impair them.
+`Did you know:` in captivity, white-crowned sparrows of a migratory subspecies slept about two-thirds less during the [migration season]{.hl}, and still did well in a learning task. Outside that season, one night of restricted sleep was enough to impair them.
 
 _Source: Rattenborg et al. (2004), PLoS Biology_
 :::
@@ -357,7 +357,7 @@ The vertical marks are the true loadings from `?language_attitudes`. Estimates f
 # Using the factors
 
 ::: {.fact}
-`Did you know:` during the 2020 lockdown, noise in San Francisco fell to levels last heard in the 1950s. White-crowned sparrows sang [more softly]{.hl} and lower, and their songs still carried farther than before.
+`Did you know:` during the 2020 [lockdown]{.hl}, noise in San Francisco fell to levels last heard in the 1950s. White-crowned sparrows sang more softly and lower, and their songs still carried farther than before.
 
 _Source: Derryberry et al. (2020), Science_
 :::

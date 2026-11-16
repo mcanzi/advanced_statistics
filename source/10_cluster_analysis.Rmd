@@ -1,0 +1,499 @@
+---
+title: "Cluster analysis"
+subtitle: "Finding groups in data"
+author: "Dr Massimiliano Canzi"
+knit: (function(input, ...) rmarkdown::render(input, output_dir = file.path(dirname(input), "..", "docs")))
+output:
+  revealjs::revealjs_presentation:
+    theme: black
+    css: theme-buttercup.css
+    highlight: zenburn
+    mathjax: null
+    incremental: true
+    transition: fade
+    background_transition: fade
+    self_contained: true
+    reveal_options:
+      width: 1050
+      height: 700
+      slideNumber: "c/t"
+      showSlideNumber: all
+      controls: true
+      touch: true
+      transitionSpeed: fast
+      navigationMode: linear
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
+                      comment = "",
+                      fig.width = 10, fig.height = 4.4, out.width = "100%")
+
+library(tidyverse)
+library(cluster)
+library(simling)
+
+source("slides_setup.R", local = knitr::knit_global())
+
+options(width = 70, pillar.print_min = 4, pillar.print_max = 4)
+
+stop_cols <- c(tense = hornbill, lenis = pandan, aspirated = kingfisher)
+
+# the segments of a dendrogram from hclust(), for ggplot2
+dendro_segments <- function(hc) {
+  n <- length(hc$order)
+  x <- numeric(n)
+  x[hc$order] <- seq_len(n)
+  pos <- matrix(NA_real_, n - 1, 2)
+  at <- function(i) if (i < 0) c(x[-i], 0) else pos[i, ]
+  map(seq_len(n - 1), \(i) {
+    a <- at(hc$merge[i, 1])
+    b <- at(hc$merge[i, 2])
+    h <- hc$height[i]
+    pos[i, ] <<- c(mean(c(a[1], b[1])), h)
+    tibble(x = c(a[1], b[1], a[1]), y = c(a[2], b[2], h),
+           xend = c(a[1], b[1], b[1]), yend = h)
+  }) |>
+    list_rbind()
+}
+```
+
+# Cluster analysis
+
+<style>
+  :root {
+    --footer-text:  "Cluster analysis";
+    --qr:           `r qr_css`;
+    --lecture:      `r lecture_label`;
+  }
+</style>
+
+::: {.fact}
+`Did you know:` Koshik, an Asian elephant in a zoo in South Korea, imitates five Korean words, such as _annyong_ 'hello' and _anja_ 'sit down'. To match human formants, he puts the tip of his [trunk]{.hl} in his mouth.
+
+_Source: Stoeger et al. (2012), Current Biology_
+:::
+
+## Where we are
+
+Factor analysis grouped the variables: which questionnaire items or linguistic features go together. [Cluster analysis]{.hl} groups the observations, such as tokens, speakers, texts or dialect locations, so that observations in the same group are similar and observations in different groups are not.
+
+. . .
+
+There is no outcome to predict. The data have no labels for the groups, and the method has to find them: this is [unsupervised]{.hl} learning. This lecture explains how clustering works and how to check its results; next time you cluster the web registers from lecture 9.
+
+## Today
+
+1. Distances
+2. k-means
+3. Hierarchical clustering
+4. How many clusters, and are they real?
+
+## The data {.smaller}
+
+`korean_stops` from {simling}: word-initial lenis, tense and aspirated stops from 20 older and 20 younger speakers of Seoul Korean, with the VOT and the f0 of the following vowel.
+
+```{r}
+ks <- korean_stops |>
+  mutate(f0_st = 12 * log2(f0 / ave(f0, speaker)))
+ks
+```
+
+. . .
+
+`f0_st` is f0 in semitones relative to each speaker's mean, so that women and men are on the same scale. `?korean_stops` gives the true model.
+
+## A sound change in progress
+
+```{r stops-plot, echo = FALSE, fig.height = 3.0}
+ggplot(ks, aes(x = vot, y = f0_st, colour = stop)) +
+  geom_point(alpha = 0.4, size = 1.4) +
+  scale_colour_manual(values = stop_cols) +
+  facet_wrap(~ generation) +
+  labs(x = "VOT (ms)", y = "f0 (semitones from speaker mean)", colour = NULL) +
+  theme(legend.position = "right")
+```
+
+Older speakers keep lenis and aspirated stops apart by VOT and by f0. In younger speakers, aspirated VOT has shortened, so the two overlap in VOT and f0 keeps them apart (Silva, 2006). Today we hide the colours and ask whether a clustering method finds the three stops.
+
+# Distances
+
+::: {.fact}
+`Did you know:` Asian elephants make [infrasonic]{.hl} calls, with fundamental frequencies down to about 14 Hz, below the range of human hearing.
+
+_Source: Payne, Langbauer & Thomas (1986), Behavioral Ecology and Sociobiology_
+:::
+
+## Similar means close
+
+Every clustering method starts from a [distance]{.hl} between observations. With two measures, the usual [Euclidean distance]{.hl} is the length of the straight line between two points in the plot:
+
+<div class="formula">d = √((vot₁ − vot₂)² + (f0₁ − f0₂)²)</div>
+
+. . .
+
+With more measures, the formula adds one squared difference per measure. `dist()` computes the distances between all pairs of rows.
+
+## Units decide the distance
+
+```{r}
+c(vot = sd(ks$vot), f0_st = sd(ks$f0_st))
+```
+
+. . .
+
+VOT varies by tens of milliseconds, f0 by a few semitones. In the raw units, a difference of 10 ms counts as much as a difference of 10 semitones, so the distance is almost all VOT. [Standardising]{.hl} each measure with `scale()` gives both a standard deviation of 1 and the same weight.
+
+## Raw or standardised?
+
+```{r scaling, echo = FALSE, fig.height = 3.4}
+younger <- filter(ks, generation == "younger")
+set.seed(1)
+km_raw <- kmeans(younger[c("vot", "f0_st")], centers = 3, nstart = 25)
+set.seed(1)
+km_std <- kmeans(scale(younger[c("vot", "f0_st")]), centers = 3, nstart = 25)
+bind_rows(`Raw units` = mutate(younger, cluster = factor(km_raw$cluster)),
+          `Standardised` = mutate(younger, cluster = factor(km_std$cluster)), .id = "data") |>
+  ggplot(aes(x = vot, y = f0_st, colour = cluster)) +
+  geom_point(alpha = 0.5, size = 1.4) +
+  scale_colour_manual(values = c(hornbill, pandan, kingfisher)) +
+  facet_wrap(~ data) +
+  labs(x = "VOT (ms)", y = "f0 (semitones)", colour = "Cluster") +
+  theme(legend.position = "right")
+```
+
+Younger speakers, three clusters each. On raw units, the clusters cut along VOT and split the lenis and aspirated stops in the middle. Standardised, f0 counts too, and the clusters follow the stops.
+
+## Which variables, in which form?
+
+The choice of measures and their transformation decides what "similar" means, before any algorithm runs.
+
+```{r}
+set.seed(1)
+km_hz <- kmeans(scale(younger[c("vot", "f0")]), centers = 2, nstart = 25)
+table(younger$gender, km_hz$cluster)
+```
+
+. . .
+
+With f0 in Hz, two clusters separate women from men. Gender is a real grouping in the data, and the wrong one for our question. Normalising f0 by speaker removed it.
+
+# k-means
+
+::: {.fact}
+`Did you know:` Mlaika, an adolescent African elephant in Kenya, imitated the sound of the [trucks]{.hl} on a nearby highway. Another elephant, kept with Asian elephants in a Swiss zoo, imitated their chirping calls.
+
+_Source: Poole et al. (2005), Nature_
+:::
+
+## The algorithm
+
+[k-means]{.hl} splits the data into a number of clusters `k` that you choose in advance.
+
+1. Place `k` cluster centres at random
+2. Assign each observation to its nearest centre
+3. Move each centre to the mean of the observations assigned to it
+4. Repeat steps 2 and 3 until no observation changes cluster
+
+. . .
+
+Each step lowers the [within-cluster sum of squares]{.hl}: the squared distances of the observations from their centres, added up.
+
+## Three steps
+
+```{r kmeans-steps, echo = FALSE, fig.height = 3.4}
+older <- filter(ks, generation == "older")
+X_old <- scale(older[c("vot", "f0_st")])
+nearest <- function(X, C) max.col(-sapply(seq_len(nrow(C)), \(j) colSums((t(X) - C[j, ])^2)))
+set.seed(5)
+C <- X_old[sample(nrow(X_old), 3), ]
+steps <- list()
+for (s in 0:10) {
+  cl <- nearest(X_old, C)
+  if (s %in% c(0, 1, 10)) {
+    steps[[length(steps) + 1]] <- list(
+      points = tibble(x = X_old[, 1], y = X_old[, 2], cluster = factor(cl), step = s),
+      centres = tibble(x = C[, 1], y = C[, 2], cluster = factor(1:3), step = s))
+  }
+  C <- rowsum(X_old, cl) / as.vector(table(cl))
+}
+step_lab <- c(`0` = "Random centres", `1` = "After one step", `10` = "Converged")
+pts <- map(steps, "points") |> list_rbind() |> mutate(step = factor(step_lab[as.character(step)], levels = step_lab))
+cen <- map(steps, "centres") |> list_rbind() |> mutate(step = factor(step_lab[as.character(step)], levels = step_lab))
+ggplot(pts, aes(x, y, colour = cluster)) +
+  geom_point(alpha = 0.35, size = 1.1) +
+  geom_point(data = cen, shape = 4, size = 5, stroke = 2.2, colour = mist) +
+  scale_colour_manual(values = c(hornbill, pandan, kingfisher), guide = "none") +
+  facet_wrap(~ step) +
+  labs(x = "VOT (standardised)", y = "f0 (standardised)")
+```
+
+Older speakers. The crosses are the centres; each point takes the colour of its nearest centre.
+
+## `kmeans()` {.smaller}
+
+```{r}
+X_old <- scale(older[c("vot", "f0_st")])
+set.seed(1)
+km <- kmeans(X_old, centers = 3, nstart = 25)
+km$size
+table(older$stop, km$cluster)
+```
+
+. . .
+
+`nstart = 25` runs the algorithm from 25 random starts and keeps the best solution. The cluster numbers are arbitrary, so compare the table by its rows: almost every stop falls into one cluster of its own.
+
+## Back to the original units
+
+```{r}
+older |>
+  mutate(cluster = km$cluster) |>
+  summarise(n = n(), vot = mean(vot), f0_st = mean(f0_st), .by = cluster) |>
+  arrange(vot)
+```
+
+. . .
+
+`km$centers` is on the standardised scale. To describe the clusters, compute their means in the original units.
+
+## What k-means assumes
+
+- Clusters are round and about the same size, because every observation goes to its nearest centre
+- Every observation belongs to exactly one cluster, including outliers and observations halfway between two clusters
+- The result can depend on the starting centres, which is why `nstart` should be well above 1
+- `k` comes from you, and k-means will find that many clusters in any data
+
+. . .
+
+[k-medoids]{.hl} (`cluster::pam()`) uses actual observations as centres and works with any distance, which makes it less sensitive to outliers (Kaufman & Rousseeuw, 1990).
+
+# Hierarchical clustering
+
+::: {.fact}
+`Did you know:` elephant rumbles also travel through the ground as [seismic]{.hl} waves. In experiments, elephants detected played-back calls through the ground alone and responded to them.
+
+_Source: O'Connell-Rodwell (2007), Physiology_
+:::
+
+## Merging step by step
+
+[Agglomerative hierarchical clustering]{.hl} needs no `k` in advance. It starts with every observation in a cluster of its own, and at each step merges the two closest clusters, until only one is left.
+
+. . .
+
+The [linkage]{.hl} method decides how close two clusters are:
+
+- single linkage takes their two closest members, complete linkage their two farthest members, and average linkage the mean of all pairs
+- Ward's method merges the two clusters that increase the within-cluster sum of squares least, the quantity k-means minimises (Ward, 1963)
+
+## The dendrogram
+
+```{r dendrogram, echo = FALSE, fig.height = 3.5}
+set.seed(2)
+few <- slice_sample(older, n = 12, by = stop)
+hc_few <- hclust(dist(scale(few[c("vot", "f0_st")])), method = "ward.D2")
+leaves <- tibble(x = seq_along(hc_few$order), stop = few$stop[hc_few$order])
+ggplot(dendro_segments(hc_few)) +
+  geom_segment(aes(x = x, y = y, xend = xend, yend = yend), colour = mist, linewidth = 0.7) +
+  geom_point(data = leaves, aes(x = x, y = 0, colour = stop), size = 3.5) +
+  scale_colour_manual(values = stop_cols) +
+  labs(x = NULL, y = "Merge height", colour = NULL) +
+  theme(axis.text.x = element_blank(), panel.grid.major.x = element_blank(), legend.position = "right")
+```
+
+36 tokens from older speakers, 12 of each stop. The height of a merge is the distance between the two clusters it joins. Cutting the tree at one height gives a clustering.
+
+## `hclust()` and `cutree()` {.smaller}
+
+```{r}
+hc <- hclust(dist(X_old), method = "ward.D2")
+table(older$stop, cutree(hc, k = 3))
+```
+
+. . .
+
+`dist()` computes the distances, `hclust()` merges, and `cutree()` cuts the tree into `k` clusters, or at a height `h`. `"ward.D2"` is Ward's method on Euclidean distances. One tree gives the clusterings for every `k` at once.
+
+## Linkage matters {.smaller}
+
+```{r}
+X_young <- scale(younger[c("vot", "f0_st")])
+d_young <- dist(X_young)
+map(c("single", "average", "ward.D2"), \(m) {
+  cl <- cutree(hclust(d_young, method = m), k = 3)
+  tibble(method = m, sizes = paste(sort(table(cl), decreasing = TRUE), collapse = ", "))
+}) |> list_rbind()
+```
+
+. . .
+
+On the younger speakers, single linkage puts almost every token into one cluster. It [chains]{.hl}: two groups that touch at one point merge early. Average linkage keeps the tense stops apart but merges lenis and aspirated, and leaves one token as a cluster of its own. Ward's method gives three clusters of similar size, like k-means.
+
+# How many clusters, and are they real?
+
+::: {.fact}
+`Did you know:` wild African elephants in Kenya address each other with [name-like]{.hl} calls. They responded more strongly to playbacks of calls that had first been addressed to them than to calls addressed to other elephants.
+
+_Source: Pardo et al. (2024), Nature Ecology & Evolution_
+:::
+
+## The elbow
+
+```{r elbow, echo = FALSE, fig.height = 3.3}
+wss <- map(c("older", "younger"), \(g) {
+  X <- scale(filter(ks, generation == g)[c("vot", "f0_st")])
+  tibble(generation = g, k = 1:8,
+         wss = map_dbl(1:8, \(k) { set.seed(1); kmeans(X, k, nstart = 25)$tot.withinss }))
+}) |> list_rbind()
+ggplot(wss, aes(x = k, y = wss)) +
+  geom_line(colour = muted) +
+  geom_point(aes(colour = k == 3), size = 3.2, show.legend = FALSE) +
+  scale_colour_manual(values = c(pandan, kingfisher)) +
+  scale_x_continuous(breaks = 1:8) +
+  facet_wrap(~ generation) +
+  labs(x = "Number of clusters k", y = "Within-cluster sum of squares")
+```
+
+More clusters always lower the within-cluster sum of squares. Look for the [elbow]{.hl}, where adding a cluster stops helping much. Here it is at 3 in both generations, though elbows are often less clear.
+
+## Silhouettes
+
+For each observation, the [silhouette width]{.hl} compares `a`, its mean distance to the other members of its own cluster, with `b`, its mean distance to the members of the nearest other cluster (Rousseeuw, 1987):
+
+<div class="formula">s = (b − a) / max(a, b)</div>
+
+- `s` close to 1: the observation sits well inside its cluster
+- `s` around 0: it lies between two clusters
+- `s` below 0: it is closer to another cluster than to its own
+
+## Choosing k with silhouettes {.smaller}
+
+```{r}
+avg_sil <- function(X, k) {
+  set.seed(1)
+  cl <- kmeans(X, centers = k, nstart = 25)$cluster
+  mean(silhouette(cl, dist(X))[, "sil_width"])
+}
+tibble(k = 2:6,
+       older = map_dbl(k, \(k) avg_sil(X_old, k)),
+       younger = map_dbl(k, \(k) avg_sil(X_young, k)))
+```
+
+. . .
+
+The average silhouette width is highest at k = 3 in both generations. `silhouette()` comes from `{cluster}`, which is installed with `R`.
+
+## Clusters in noise {.smaller}
+
+```{r noise, fig.height = 2.4}
+set.seed(3)
+noise <- tibble(x = runif(300), y = runif(300))
+set.seed(1)
+km_noise <- kmeans(noise, centers = 4, nstart = 25)
+ggplot(mutate(noise, cluster = factor(km_noise$cluster)), aes(x, y, colour = cluster)) +
+  geom_point(size = 1.6, show.legend = FALSE) + coord_equal()
+```
+
+Uniform noise, with no groups at all, cut into four tidy clusters. Its average silhouette width is `r round(avg_sil(as.matrix(noise), 4), 2)`.
+
+## How strong is the structure?
+
+Kaufman and Rousseeuw (1990) suggested reading the average silhouette width like this:
+
+| Average silhouette width | Structure |
+|:--|:--|
+| 0.71 to 1 | strong |
+| 0.51 to 0.70 | reasonable |
+| 0.26 to 0.50 | weak, could be artificial |
+| 0.25 or less | no substantial structure |
+
+. . .
+
+The Korean stops reach `r round(avg_sil(X_old, 3), 2)` (older) and `r round(avg_sil(X_young, 3), 2)` (younger): reasonable. The noise, at `r round(avg_sil(as.matrix(noise), 4), 2)`, would have counted as weak structure.
+
+## Comparing with known groups
+
+Here we know the stops, so we can check the clusters against them. In a real application of clustering we usually do not, but often there is a variable to compare with, such as a register, a region or a speaker group.
+
+. . .
+
+- A cross-table of clusters and groups shows which groups end up together
+- The [adjusted Rand index]{.hl} sums the table up in one number: 1 when the two groupings are identical, around 0 for chance agreement (Hubert & Arabie, 1985)
+- A cluster that matches no known group may be worth a look, or may be an artefact of the choices made
+
+## Two generations
+
+```{r centres, echo = FALSE, fig.height = 3.2}
+centres <- map(c("older", "younger"), \(g) {
+  d <- filter(ks, generation == g)
+  set.seed(1)
+  cl <- kmeans(scale(d[c("vot", "f0_st")]), centers = 3, nstart = 25)$cluster
+  mutate(d, cluster = cl) |>
+    summarise(vot = mean(vot), f0_st = mean(f0_st), n = n(), .by = cluster) |>
+    mutate(generation = g)
+}) |> list_rbind()
+ggplot(ks, aes(x = vot, y = f0_st)) +
+  geom_point(colour = vine, alpha = 0.5, size = 1.1) +
+  geom_point(data = centres, aes(colour = generation), shape = 4, size = 5, stroke = 2.2) +
+  scale_colour_manual(values = c(older = pandan, younger = kingfisher)) +
+  labs(x = "VOT (ms)", y = "f0 (semitones)", colour = "Cluster centres") +
+  theme(legend.position = "right")
+```
+
+Both generations have three clusters, but the centre with high f0 and long VOT has moved to a shorter VOT in the younger speakers, as in Silva's (2006) data.
+
+## Tokens or speakers?
+
+Our tokens are not independent: each speaker contributes 36, and tokens of one speaker resemble each other.
+
+- Clustering tokens describes the categories in the data, but how well a clustering holds up says little about new speakers
+- To group speakers, such as dialect speakers by their vowel systems, cluster one row per speaker, for example speaker means or model estimates
+- Check stability: cluster random halves of the speakers, or bootstrap samples, and see whether the same clusters come back
+
+## Reporting {.smaller}
+
+> We clustered the 720 tokens of each generation by VOT and by f0 in semitones relative to the speaker's mean, both standardised. k-means with 25 random starts (`kmeans()` in `R`) and Ward's hierarchical clustering on Euclidean distances gave the same three clusters. The average silhouette width was highest for three clusters (`r round(avg_sil(X_old, 3), 2)` for older and `r round(avg_sil(X_young, 3), 2)` for younger speakers), and the clusters matched the lenis, tense and aspirated stops.
+
+. . .
+
+Report the variables and how you transformed them, the distance, the method and its settings, how you chose `k`, and how you checked the clusters.
+
+## Summary
+
+::: {.takeaway}
+- [Cluster analysis]{.hl} groups observations without labels. The variables, their transformation and the distance decide what counts as similar
+- Standardise measures on different scales, and normalise away groups you are not looking for
+- [k-means]{.hl} needs `k` in advance and assumes round clusters; use many random starts
+- [Hierarchical clustering]{.hl} builds a tree for every `k`; the linkage method changes the result, and Ward's method behaves like k-means
+- Every method finds clusters, even in noise: choose `k` with the elbow and [silhouettes]{.hl}, compare with known groups and check stability
+:::
+
+## References {.refs}
+
+- Hubert, L., & Arabie, P. (1985). Comparing partitions. _Journal of Classification_, 2(1), 193–218.
+- [James, G., Witten, D., Hastie, T., & Tibshirani, R. (2021). _An introduction to statistical learning: With applications in R_ (2nd ed.). Springer. Chapter 12. https://www.statlearning.com]{.hl}
+- Kaufman, L., & Rousseeuw, P. J. (1990). _Finding groups in data: An introduction to cluster analysis_. Wiley.
+- Rousseeuw, P. J. (1987). Silhouettes: A graphical aid to the interpretation and validation of cluster analysis. _Journal of Computational and Applied Mathematics_, 20, 53–65.
+- Silva, D. J. (2006). Acoustic evidence for the emergence of tonal contrast in contemporary Korean. _Phonology_, 23(2), 287–308.
+- Ward, J. H. (1963). Hierarchical grouping to optimize an objective function. _Journal of the American Statistical Association_, 58(301), 236–244.
+
+## Sources of the animal facts {.refs}
+
+- O'Connell-Rodwell, C. E. (2007). Keeping an "ear" to the ground: Seismic communication in elephants. _Physiology_, 22(4), 287–294.
+- Pardo, M. A., Fristrup, K., Lolchuragi, D. S., Poole, J. H., Granli, P., Moss, C., Douglas-Hamilton, I., & Wittemyer, G. (2024). African elephants address one another with individually specific name-like calls. _Nature Ecology & Evolution_, 8, 1353–1364.
+- Payne, K. B., Langbauer, W. R., & Thomas, E. M. (1986). Infrasonic calls of the Asian elephant (_Elephas maximus_). _Behavioral Ecology and Sociobiology_, 18(4), 297–301.
+- Poole, J. H., Tyack, P. L., Stoeger-Horwath, A. S., & Watwood, S. (2005). Elephants are capable of vocal learning. _Nature_, 434, 455–456. https://doi.org/10.1038/434455a
+- Stoeger, A. S., Mietchen, D., Oh, S., de Silva, S., Herbst, C. T., Kwon, S., & Fitch, W. T. (2012). An Asian elephant imitates human speech. _Current Biology_, 22(22), 2144–2148. https://doi.org/10.1016/j.cub.2012.09.022
+
+## Slides and code
+
+<div class="qr-block">
+<img src="`r qr_uri`" alt="QR code linking to these slides">
+<div>
+<p>These slides</p>
+<p class="qr-link">mcanzi.de/advanced_statistics/<wbr>`r lecture_file`</p>
+<p>Code and all lectures</p>
+<p class="qr-link">github.com/mcanzi/advanced_statistics</p>
+</div>
+</div>

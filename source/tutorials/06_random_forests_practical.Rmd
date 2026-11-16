@@ -1,0 +1,311 @@
+---
+title: "Random forests in practice"
+subtitle: "Tutorial 6"
+author: "Dr Massimiliano Canzi"
+output:
+  html_document:
+    theme: darkly
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+These exercises follow the tasks on the slides of lecture 6, "Random forests in practice". Write your code in the empty chunks, and answer the questions in a sentence or two under each chunk. Section 4 goes beyond the slides.
+
+## Setup
+
+```{r}
+library(tidyverse)
+library(ranger)
+library(simling)
+```
+
+## The data
+
+`accent` comes from a simulated accent study in which 30 speakers, 15 with English as their L1 and 15 Italian learners of English, read 40 English words each. Each token has six acoustic measures: `vot` (ms), `vowel_ratio`, `rate` (syllables per second), `f0` (Hz), `h1h2` (dB) and `intensity` (dB).
+
+```{r}
+glimpse(accent)
+```
+
+The research question: can the acoustic measures tell an L1 English speaker from an Italian learner? `?accent` gives the true model. Leave it closed until you have finished section 3.
+
+---
+
+## 1. Look at the data
+
+### 1.1 Tokens
+
+How many tokens are there per speaker, and how many speakers per L1?
+
+::: solution
+
+```{r}
+count(accent, speaker) |> distinct(n)
+distinct(accent, speaker, l1) |> count(l1)
+```
+
+:::
+
+### 1.2 Speaker means
+
+Compute each speaker's mean for each of the six measures, and plot them by L1, with a panel for each measure. Which measures separate the groups?
+
+::: solution
+
+```{r}
+speaker_means <- accent |>
+  summarise(across(vot:intensity, mean), .by = c(speaker, l1)) |>
+  pivot_longer(vot:intensity, names_to = "measure")
+ggplot(speaker_means, aes(x = l1, y = value)) +
+  geom_jitter(width = 0.12, height = 0) +
+  facet_wrap(~ measure, scales = "free_y", nrow = 1) +
+  labs(x = NULL, y = "Speaker mean")
+```
+
+VOT, the vowel ratio and, less clearly, speech rate differ between the groups. f0 mostly separates women from men.
+
+:::
+
+### 1.3 The baseline
+
+What accuracy would you get by always guessing the same L1?
+
+::: solution
+
+```{r}
+max(prop.table(table(accent$l1)))
+```
+
+Half of the tokens come from each group, so the baseline is 50%.
+
+:::
+
+---
+
+## 2. A first forest
+
+### 2.1 Fit a forest
+
+Fit a random forest with all six measures and 1,000 trees, and ask for permutation importance. Complete the call:
+
+```{r, eval = FALSE}
+f_all <- l1 ~ vot + vowel_ratio + rate + f0 + h1h2 + intensity
+rf_all <- ranger(f_all, data = accent, num.trees = 1000, importance = ___, seed = 1)
+```
+
+What is the OOB accuracy (`1 - rf_all$prediction.error`), and how does it compare with the baseline?
+
+::: solution
+
+```{r}
+f_all <- l1 ~ vot + vowel_ratio + rate + f0 + h1h2 + intensity
+rf_all <- ranger(f_all, data = accent, num.trees = 1000, importance = "permutation", seed = 1)
+1 - rf_all$prediction.error
+```
+
+:::
+
+### 2.2 Variable importance
+
+Plot the permutation importance of the six measures. f0 and H1–H2 have no link with L1 in the simulation. Why could the forest find them useful?
+
+::: solution
+
+```{r}
+enframe(rf_all$variable.importance) |>
+  mutate(name = fct_reorder(name, value)) |>
+  ggplot(aes(x = value, y = name)) +
+  geom_col() +
+  labs(x = "Permutation importance", y = NULL)
+```
+
+f0 and H1–H2 vary between speakers but little within them. A tree's bootstrap sample almost always contains other tokens of the speaker whose OOB token it predicts, so the forest can recognise the speaker by these measures and look up their L1.
+
+:::
+
+### 2.3 Speaker fingerprints
+
+Plot every token's f0 by speaker, with the speakers ordered by their mean f0 and coloured by L1. How does this plot explain the importance of f0?
+
+::: solution
+
+```{r}
+accent |>
+  mutate(speaker = fct_reorder(speaker, f0)) |>
+  ggplot(aes(x = speaker, y = f0, colour = l1)) +
+  geom_jitter(width = 0.15, height = 0, alpha = 0.5) +
+  labs(x = "Speakers, ordered by mean f0", y = "f0 (Hz)", colour = NULL) +
+  theme(axis.text.x = element_blank())
+```
+
+Each speaker's tokens cluster tightly, while English and Italian speakers are mixed along the whole range of f0.
+
+:::
+
+---
+
+## 3. New speakers
+
+### 3.1 Cross-validation by speaker
+
+Complete the test set in this function, which fits a forest on four fifths of the speakers and predicts the other fifth, five times:
+
+```{r, eval = FALSE}
+set.seed(2)
+folds <- distinct(accent, speaker, l1) |>
+  mutate(fold = sample(rep(1:5, length.out = n())), .by = l1)
+cv_speakers <- function(formula) {
+  map(1:5, \(k) {
+    train <- filter(accent, speaker %in% folds$speaker[folds$fold != k])
+    test <- filter(accent, speaker %in% ___)
+    m <- ranger(formula, data = train, num.trees = 500, seed = k)
+    tibble(speaker = test$speaker, l1 = test$l1, pred = predict(m, test)$predictions)
+  }) |> list_rbind()
+}
+```
+
+Run `cv_speakers(f_all)`, and compute the accuracy on held-out speakers. `{konstats}` has a finished version of this function, `konstats::cv_speakers()`.
+
+::: solution
+
+```{r}
+set.seed(2)
+folds <- distinct(accent, speaker, l1) |>
+  mutate(fold = sample(rep(1:5, length.out = n())), .by = l1)
+cv_speakers <- function(formula) {
+  map(1:5, \(k) {
+    train <- filter(accent, speaker %in% folds$speaker[folds$fold != k])
+    test <- filter(accent, speaker %in% folds$speaker[folds$fold == k])
+    m <- ranger(formula, data = train, num.trees = 500, seed = k)
+    tibble(speaker = test$speaker, l1 = test$l1, pred = predict(m, test)$predictions)
+  }) |> list_rbind()
+}
+cv_all <- cv_speakers(f_all)
+mean(cv_all$pred == cv_all$l1)
+```
+
+:::
+
+### 3.2 Fewer predictors
+
+Refit with only `vot`, `vowel_ratio` and `rate`. Compare the OOB accuracy and the speaker-wise cross-validated accuracy of both forests. Which forest would you trust for new speakers?
+
+::: solution
+
+```{r}
+f_l1 <- l1 ~ vot + vowel_ratio + rate
+rf_l1 <- ranger(f_l1, data = accent, num.trees = 1000, importance = "permutation", seed = 1)
+cv_l1 <- cv_speakers(f_l1)
+tibble(forest = c("All six measures", "VOT, vowel ratio, rate"),
+       oob = c(1 - rf_all$prediction.error, 1 - rf_l1$prediction.error),
+       new_speakers = c(mean(cv_all$pred == cv_all$l1), mean(cv_l1$pred == cv_l1$l1)))
+```
+
+Only cross-validation by speaker estimates how well a forest classifies speakers it has not seen.
+
+:::
+
+### 3.3 From tokens to speakers
+
+For each held-out speaker in `cv_l1`, take the L1 that most of their 40 tokens were assigned to. How many of the 30 speakers are classified correctly?
+
+::: solution
+
+```{r}
+speaker_votes <- cv_l1 |>
+  summarise(italian = mean(pred == "Italian"), .by = c(speaker, l1)) |>
+  mutate(pred = if_else(italian > 0.5, "Italian", "English"))
+sum(speaker_votes$pred == speaker_votes$l1)
+```
+
+:::
+
+### 3.4 Partial dependence
+
+Fit a probability forest with the three measures on all data, and draw a partial dependence plot for VOT, from 10 to 110 ms, as in lecture 5. In which VOT range does the predicted probability of an Italian L1 change most? `konstats::partial_dependence()` does the same for any model.
+
+::: solution
+
+```{r}
+rf_prob <- ranger(f_l1, data = accent, num.trees = 500, probability = TRUE, seed = 1)
+partial <- function(model, data, var, values) {
+  map(values, \(v) {
+    data[[var]] <- v
+    tibble(value = v, p = mean(predict(model, data)$predictions[, "Italian"]))
+  }) |> list_rbind()
+}
+partial(rf_prob, accent, "vot", seq(10, 110, by = 5)) |>
+  ggplot(aes(x = value, y = p)) +
+  geom_line(linewidth = 1.2) +
+  labs(x = "VOT (ms)", y = "P(Italian)")
+```
+
+:::
+
+### 3.5 Report
+
+Write a short methods and results paragraph with the number of trees, `mtry` and the seed, why you kept the predictors you kept, how accuracy was estimated and why OOB accuracy was not enough, and the token and speaker accuracy against the baseline. Then open `?accent`: did the forest find the measures that were built in?
+
+---
+
+## 4. Beyond the slides
+
+### 4.1 Tuning `mtry`
+
+Tune `mtry` for the three-measure forest, with speaker-wise cross-validation and not the OOB error. Adapt `cv_speakers()` so that it passes `mtry` on to `ranger()`, and try `mtry` from 1 to 3.
+
+::: solution
+
+```{r}
+cv_mtry <- function(formula, mtry) {
+  map(1:5, \(k) {
+    train <- filter(accent, speaker %in% folds$speaker[folds$fold != k])
+    test <- filter(accent, speaker %in% folds$speaker[folds$fold == k])
+    m <- ranger(formula, data = train, num.trees = 500, mtry = mtry, seed = k)
+    tibble(l1 = test$l1, pred = predict(m, test)$predictions)
+  }) |> list_rbind()
+}
+tibble(mtry = 1:3) |>
+  mutate(accuracy = map_dbl(mtry, \(m) { cv <- cv_mtry(f_l1, m); mean(cv$pred == cv$l1) }))
+```
+
+:::
+
+### 4.2 A mixed model
+
+Fit a mixed logistic regression with the three standardised measures and a random intercept by speaker:
+
+```{r, eval = FALSE}
+lme4::glmer(l1 ~ scale(vot) + scale(vowel_ratio) + scale(rate) + (1 | speaker),
+            data = accent, family = binomial)
+```
+
+What does the mixed model tell you that the forest does not, and what does it fail to see?
+
+::: solution
+
+```{r}
+m_glmer <- lme4::glmer(l1 ~ scale(vot) + scale(vowel_ratio) + scale(rate) + (1 | speaker),
+                       data = accent, family = binomial)
+round(lme4::fixef(m_glmer), 2)
+```
+
+The mixed model gives the direction and size of each effect, with standard errors that take the speakers into account. It assumes that each measure has a linear effect on the log odds and no interactions, which the forest does not.
+
+:::
+
+### 4.3 The trap with a single measure
+
+Fit a forest with `f0` as its only predictor. Compare its OOB accuracy with its accuracy on held-out speakers. What does the difference tell you?
+
+::: solution
+
+```{r}
+rf_f0 <- ranger(l1 ~ f0, data = accent, num.trees = 500, seed = 1)
+cv_f0 <- cv_speakers(l1 ~ f0)
+c(oob = 1 - rf_f0$prediction.error, new_speakers = mean(cv_f0$pred == cv_f0$l1))
+```
+
+:::

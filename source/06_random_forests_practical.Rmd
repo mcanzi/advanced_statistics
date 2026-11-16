@@ -49,14 +49,14 @@ options(width = 70, pillar.print_min = 4, pillar.print_max = 4)
 </style>
 
 ::: {.fact}
-`Did you know:` a single Eurasian jay hides [several thousand]{.hl} acorns in autumn, mainly in October, and feeds on them through winter, spring and early summer.
+`Did you know:` a single [Eurasian jay]{.hl} hides several thousand acorns in autumn, mainly in October, and feeds on them through winter, spring and early summer.
 
 _Source: Bossema (1979), Behaviour_
 :::
 
 ## How today works
 
-As in lecture 4: you work in pairs, the task slides say what to do, checkpoints show what you should get, and the solutions are in the `.Rmd` file of these slides on GitHub.
+As in lecture 4: you work in pairs, the task slides say what to do, checkpoints show what you should get, and the solutions are in the `.Rmd` file of these slides on GitHub. The tutorial sheet for today: `konstats::get_tutorial(6, ".", course = "advanced")`.
 
 . . .
 
@@ -113,7 +113,7 @@ VOT, the vowel ratio and, less clearly, articulation rate differ between the gro
 # A first forest
 
 ::: {.fact}
-`Did you know:` a jay can carry up to [six acorns]{.hl} on one trip. It swallows the first ones and carries the last in its bill, and the more acorns it carries, the farther it flies before hiding them.
+`Did you know:` a jay can carry up to six acorns on one trip. It swallows the first ones and carries the last in its [bill]{.hl}, and the more acorns it carries, the farther it flies before hiding them.
 
 _Source: Bossema (1979), Behaviour_
 :::

@@ -65,23 +65,54 @@ Nothing here is new. If a slide feels unfamiliar, the matching lecture of the fi
 
 ## Today
 
-1. The linear model
-2. Categorical predictors and several predictors
-3. Interactions
-4. Mixed models
+1. The course packages
+2. The linear model
+3. Categorical predictors and several predictors
+4. Interactions
+5. Mixed models
 
-## Data from {simling}
+## {konstats}
 
-All data sets in this course come from {simling}, a package of simulated linguistic data. Each help page gives the [true model]{.hl} behind the data, so we can check whether a model finds it again.
+`{konstats}` is the companion package of Statistics and of this course. If you took Statistics, you have it already; installing it again gets you the latest version. Type this in the `Console`, once:
 
 ```{r, eval = FALSE}
-remotes::install_github("mcanzi/simling")
-library(simling)
+install.packages("remotes")
+remotes::install_github("mcanzi/konstats")
+konstats::install_course("advanced")
 ```
 
 . . .
 
-The simulation code for every data set is in the package's GitHub repository, in `data-raw`.
+Installing `{konstats}` brings the packages of Statistics, `{simling}` included. `install_course("advanced")` adds the ones this course needs on top, such as `{mgcv}`, `{ranger}` and `{psych}`.
+
+## Is your computer ready? {.smaller}
+
+```{r, message = TRUE}
+library(konstats)
+check_setup("advanced")
+```
+
+. . .
+
+If a package is missing, the message says which, and what to run. Run `check_setup("advanced")` again whenever code from the course fails on your computer.
+
+## Lectures and tutorials {.smaller}
+
+```{r}
+print(lectures("advanced")[, c("number", "topic", "datasets", "tutorial")], n = 12)
+```
+
+. . .
+
+`slides(5, course = "advanced")` opens the slides of a lecture. The practical lectures come with a tutorial sheet, which `get_tutorial(4, ".", course = "advanced")` copies into your project folder.
+
+## Data from {simling}
+
+All data sets in this course come from `{simling}`, a package of simulated linguistic data that came with `{konstats}`. Each help page gives the [true model]{.hl} behind the data, so we can check whether a model finds it again.
+
+. . .
+
+The simulation code for every data set is in the package's GitHub repository, in `data-raw`. Some lectures also write small helper functions, such as `resid_acf()` in lecture 3 and `theme_paper()` in lecture 12. `{konstats}` has them too, ready to use in your own analyses.
 
 ## The data {.smaller}
 
@@ -124,7 +155,7 @@ RTs are [skewed]{.hl} to the right. In the simulation, every effect works on `lo
 # The linear model
 
 ::: {.fact}
-`Did you know:` in playback experiments, king penguin chicks picked out their parent's call even when it was [6 dB quieter]{.hl} than the calls of other adults played at the same time.
+`Did you know:` in [playback experiments]{.hl}, king penguin chicks picked out their parent's call even when it was 6 dB quieter than the calls of other adults played at the same time.
 
 _Source: Aubin & Jouventin (1998), Proceedings of the Royal Society B_
 :::
@@ -227,7 +258,7 @@ Linear models assume residuals that are roughly [normal]{.hl} and [equally sprea
 # More predictors
 
 ::: {.fact}
-`Did you know:` king penguin chicks need very little of a call to recognise a parent. The first half of [one syllable]{.hl} (0.23 s), with only its three lowest harmonics, was enough.
+`Did you know:` king penguin chicks need very little of a call to recognise a parent. The first half of one syllable (0.23 s), with only its three lowest [harmonics]{.hl}, was enough.
 
 _Source: Jouventin, Aubin & Lengagne (1999), Animal Behaviour_
 :::
@@ -321,7 +352,7 @@ Frequent words tend to be short.
 # Interactions
 
 ::: {.fact}
-`Did you know:` king penguin chicks still recognised their parent's call when its frequency was shifted [100 Hz down or 75 Hz up]{.hl}. Their recognition does not depend on exact pitch.
+`Did you know:` king penguin chicks still recognised their parent's call when its frequency was shifted 100 Hz down or 75 Hz up. Their recognition does not depend on exact [pitch]{.hl}.
 
 _Source: Jouventin, Aubin & Lengagne (1999), Animal Behaviour_
 :::
@@ -496,7 +527,7 @@ bind_rows(se_tab(lm(log(rt) ~ freq_c * group + length_c, data = lex), "lm()"), s
   theme(legend.position = "right")
 ```
 
-Estimate ± 1.96 SE for each fixed effect. The intervals widen most for `group1`, which varies between participants: only 30 participants stand behind it, not 1,200 responses.
+Estimate ± 1.96 SE for each fixed effect. The intervals widen most for `group1`, which varies between participants, so only 30 participants stand behind it.
 
 ## Partial pooling
 

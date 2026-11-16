@@ -134,7 +134,7 @@ m_gam <- bam(f2 ~ l1_o + s(time, k = 10) + s(time, by = l1_o, k = 10),
 acf_gam <- resid_acf(residuals(m_gam), price$traj)
 ```
 
-The [autocorrelation]{.hl} at lag 1 is the correlation between each residual and the residual one measurement earlier in the same trajectory; lag 2 skips one measurement, and so on. `itsadug::acf_resid()` does the same with base `R` graphics.
+The [autocorrelation]{.hl} at lag 1 is the correlation between each residual and the residual one measurement earlier in the same trajectory; lag 2 skips one measurement, and so on. `itsadug::acf_resid()` does the same with base `R` graphics, and `{konstats}` has our function as `konstats::resid_acf()`.
 
 ## Residual autocorrelation
 
@@ -212,13 +212,14 @@ One line per speaker. Intercepts shift each speaker's curve up or down, slopes t
 - Our groups differ [between]{.hl} speakers: each speaker is English or Italian, so the difference smooth cannot vary by speaker
 - When a comparison is [within]{.hl} speakers, say two vowels from every speaker, the model also needs speakers to differ in the vowel difference, like a by-speaker random slope in `lmer()`
 
+. . .
 
 One way is a random smooth for every speaker and vowel combination, `s(time, speaker_vowel, bs = "fs", m = 1)`. Sóskuthy (2021) compares this and other options in simulations.
 
 # Autocorrelation
 
 ::: {.fact}
-`Did you know:` isolated fruit bat pups that heard recordings of adult bats developed a repertoire that [copied]{.hl} the playbacks.
+`Did you know:` isolated fruit bat pups that heard recordings of adult bats developed a [repertoire]{.hl} that copied the playbacks.
 
 _Source: Prat, Taub & Yovel (2015), Science Advances_
 :::

@@ -1,0 +1,367 @@
+---
+title: "Cluster analysis in practice"
+subtitle: "Grouping web texts by their dimension scores"
+author: "Dr Massimiliano Canzi"
+knit: (function(input, ...) rmarkdown::render(input, output_dir = file.path(dirname(input), "..", "docs")))
+output:
+  revealjs::revealjs_presentation:
+    theme: black
+    css: theme-buttercup.css
+    highlight: zenburn
+    mathjax: null
+    incremental: true
+    transition: fade
+    background_transition: fade
+    self_contained: true
+    reveal_options:
+      width: 1050
+      height: 700
+      slideNumber: "c/t"
+      showSlideNumber: all
+      controls: true
+      touch: true
+      transitionSpeed: fast
+      navigationMode: linear
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
+                      comment = "",
+                      fig.width = 10, fig.height = 4.4, out.width = "100%")
+
+library(tidyverse)
+library(psych)
+library(cluster)
+library(simling)
+
+source("slides_setup.R", local = knitr::knit_global())
+
+options(width = 70, pillar.print_min = 4, pillar.print_max = 4)
+
+cluster_cols <- c(hornbill, pandan, kingfisher, orchid, mist, moss)
+```
+
+# Cluster analysis in practice
+
+<style>
+  :root {
+    --footer-text:  "Cluster analysis in practice";
+    --qr:           `r qr_css`;
+    --lecture:      `r lecture_label`;
+  }
+</style>
+
+::: {.fact}
+`Did you know:` Mozart kept a pet starling for three years. In his account book, he wrote down a melody it sang, a variant of a theme from his [Piano Concerto]{.hl} in G major, K. 453.
+
+_Source: West & King (1990), American Scientist_
+:::
+
+## How today works
+
+As in lectures 4, 6 and 9: you work in pairs, the task slides say what to do, checkpoints show what you should get, and the solutions are in the `.Rmd` file of these slides on GitHub. The tutorial sheet for today: `konstats::get_tutorial(11, ".", course = "advanced")`.
+
+. . .
+
+Today's data hide a trap from lecture 10. See whether you find it before the slides point it out.
+
+## The study
+
+`web_registers` from {simling}, the 480 web texts from six registers of lecture 9. There, a factor analysis found three dimensions of variation, and the registers overlapped on all three.
+
+. . .
+
+The research question: do the texts fall into groups by their linguistic features, and do those groups match the six registers?
+
+## The dimensions again {.smaller}
+
+The factor analysis from lecture 9, without the redundant `pronouns`:
+
+```{r}
+features <- select(web_registers, adverbs:word_length, -pronouns)
+mda <- fa(features, nfactors = 3, rotate = "promax", fm = "minres")
+scores <- bind_cols(select(web_registers, text, register), as_tibble(mda$scores))
+scores
+```
+
+. . .
+
+`?web_registers` gives the true model. Leave it closed until you have finished the tasks.
+
+## Task 1: look at the scores
+
+1. Look at the loadings with `print(mda$loadings, cutoff = 0.3, sort = TRUE)` and give each dimension the name you gave it in lecture 9
+2. Plot every text on two of the dimensions, coloured by register. Do the registers form separate groups?
+3. Compute the standard deviation of each dimension. Do the scores need standardising before clustering?
+
+## Checkpoint 1
+
+```{r check-1, echo = FALSE, fig.height = 3.2}
+ggplot(scores, aes(x = MR1, y = MR3, colour = register)) +
+  geom_point(alpha = 0.7, size = 1.6) +
+  scale_colour_manual(values = cluster_cols) +
+  coord_equal() +
+  labs(x = "MR1", y = "MR3", colour = NULL) +
+  theme(legend.position = "right")
+```
+
+The registers have their own areas, but they overlap, and forum discussions and personal blogs share most of theirs. The scores have standard deviations a little below 1, so they are on similar scales already.
+
+# Clustering the texts
+
+::: {.fact}
+`Did you know:` each starling in a flock adjusts its flight to six or [seven]{.hl} of its nearest neighbours, however far away they are. This keeps a flock together when its density changes.
+
+_Source: Ballerini et al. (2008), PNAS_
+:::
+
+## Task 2: cluster the features
+
+Why not cluster the texts on the 16 features directly?
+
+```{r, eval = FALSE}
+set.seed(1)
+km_raw <- kmeans(features, centers = ___, nstart = 25)
+```
+
+- Fit k-means with four clusters on `features`
+- Compute the mean of each feature per cluster. Which features differ most between the clusters?
+- Compare these features with the standard deviations of all features. What has happened?
+
+```{r task-2, include = FALSE}
+set.seed(1)
+km_raw <- kmeans(features, centers = 4, nstart = 25)
+feature_sd <- enframe(map_dbl(features, sd), name = "feature", value = "sd")
+```
+
+## Checkpoint 2
+
+```{r check-2, echo = FALSE, fig.height = 3.4}
+feature_sd |>
+  mutate(feature = fct_reorder(feature, sd)) |>
+  ggplot(aes(x = sd, y = feature)) +
+  geom_col(fill = kingfisher, width = 0.65) +
+  labs(x = "Standard deviation (per 1,000 words; letters for word_length)", y = NULL)
+```
+
+`first_person` and `nouns` vary most, so they decide the distances on the raw features, and `word_length`, with a standard deviation below 1, counts for almost nothing.
+
+## The trap
+
+On raw features, the clusters follow the features with the largest numbers. A rate per 1,000 words of nouns varies more than a rate of conjuncts because nouns are more frequent, which says nothing about how important nouns are for telling texts apart.
+
+. . .
+
+- Standardise the features with `scale()`, as in lecture 10, or
+- cluster on the dimension scores, which summarise the shared variation of all features on a common scale. In a multi-dimensional analysis, these are the natural basis for grouping texts
+
+## Task 3: how many clusters?
+
+From now on, cluster the dimension scores:
+
+```{r}
+S <- as.matrix(select(scores, starts_with("MR")))
+```
+
+1. Compute the within-cluster sum of squares of k-means for k from 1 to 8, and plot it
+2. Compute the average silhouette width for k from 2 to 8, with `silhouette()` from `{cluster}`, as in lecture 10
+3. Which k would you choose? How strong is the structure?
+
+```{r task-3, include = FALSE}
+k_choice <- tibble(k = 1:8) |>
+  mutate(wss = map_dbl(k, \(k) { set.seed(1); kmeans(S, k, nstart = 25)$tot.withinss }),
+         sil = map_dbl(k, \(k) {
+           if (k == 1) return(NA_real_)
+           set.seed(1)
+           cl <- kmeans(S, k, nstart = 25)$cluster
+           mean(silhouette(cl, dist(S))[, "sil_width"])
+         }))
+```
+
+## Checkpoint 3
+
+```{r check-3, echo = FALSE, fig.height = 3.0}
+k_choice |>
+  pivot_longer(c(wss, sil), names_to = "measure", values_to = "value") |>
+  filter(!is.na(value)) |>
+  mutate(measure = if_else(measure == "wss", "Within-cluster sum of squares", "Average silhouette width")) |>
+  ggplot(aes(x = k, y = value)) +
+  geom_line(colour = muted) +
+  geom_point(colour = kingfisher, size = 3) +
+  scale_x_continuous(breaks = 1:8) +
+  facet_wrap(~ measure, scales = "free_y") +
+  labs(x = "Number of clusters k", y = NULL)
+```
+
+There is no clear elbow, and the average silhouette width stays between `r round(min(k_choice$sil, na.rm = TRUE), 2)` and `r round(max(k_choice$sil, na.rm = TRUE), 2)` for every k: weak structure, by Kaufman and Rousseeuw's (1990) guide.
+
+# Clusters and registers
+
+::: {.fact}
+`Did you know:` when one starling in a flock changes direction, the change is correlated with the movement of birds across the [whole flock]{.hl}, in small flocks and in flocks of thousands alike.
+
+_Source: Cavagna et al. (2010), PNAS_
+:::
+
+## Task 4: three clusters
+
+With no clear best k, the choice is yours. Take k = 3 for now.
+
+1. Fit k-means with three clusters on `S`, with `set.seed(1)` and `nstart = 25`
+2. Cross-tabulate the clusters with the registers. Which registers share a cluster, and which register is split?
+3. Fit a Ward hierarchical clustering on the same scores, cut it into three clusters, and compare it with k-means
+
+```{r task-4, include = FALSE}
+set.seed(1)
+km3 <- kmeans(S, centers = 3, nstart = 25)
+scores <- mutate(scores, cluster = factor(km3$cluster))
+hc <- hclust(dist(S), method = "ward.D2")
+ward3 <- cutree(hc, k = 3)
+```
+
+## Checkpoint 4
+
+```{r check-4, echo = FALSE, fig.height = 3.4}
+count(scores, register, cluster) |>
+  complete(register, cluster, fill = list(n = 0)) |>
+  mutate(share = n / sum(n), .by = register) |>
+  ggplot(aes(x = cluster, y = fct_rev(register), fill = share)) +
+  geom_tile(colour = floor_col) +
+  geom_text(aes(label = n), colour = mist, size = 5) +
+  scale_fill_gradient(low = floor_col, high = kingfisher, labels = scales::percent) +
+  labs(x = "Cluster", y = NULL, fill = "Share of\nregister") +
+  theme(panel.grid = element_blank(), legend.position = "right")
+```
+
+Your cluster numbers may differ. Research articles fall into one cluster with most encyclopedia articles, forum discussions with recipes, and news reports and personal blogs split across clusters.
+
+## Task 5: describe the clusters
+
+Describe a cluster by what its members share. The register most of them come from may not fit all of them.
+
+1. Compute the mean score of each cluster on each dimension, and plot these profiles
+2. Name each cluster from its profile, with the dimension names from Task 1
+3. Would these names fit the registers that make up each cluster?
+
+```{r task-5, include = FALSE}
+profiles <- scores |>
+  pivot_longer(starts_with("MR"), names_to = "dimension", values_to = "score") |>
+  summarise(mean = mean(score), .by = c(cluster, dimension))
+```
+
+## Checkpoint 5
+
+```{r check-5, echo = FALSE, fig.height = 3.2}
+ggplot(profiles, aes(x = dimension, y = mean, colour = cluster, group = cluster)) +
+  geom_hline(yintercept = 0, colour = muted, linetype = "dashed") +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 3.5) +
+  scale_colour_manual(values = cluster_cols) +
+  labs(x = NULL, y = "Mean score", colour = "Cluster") +
+  theme(legend.position = "right")
+```
+
+Each cluster stands out on one or two dimensions. Clusters that mix registers can still have a clear profile.
+
+# How stable are the clusters?
+
+::: {.fact}
+`Did you know:` starlings learned to tell apart sound sequences built with [centre-embedding]{.hl} from sequences without it. Gentner and colleagues took this as evidence against the claim that only humans can learn such recursive patterns.
+
+_Source: Gentner et al. (2006), Nature_
+:::
+
+## Task 6: two halves
+
+Clusters that come back in new data are more convincing. Split the texts at random into two halves, and cluster each half separately.
+
+```{r, eval = FALSE}
+set.seed(3)
+half <- sample(rep(1:2, length.out = nrow(S)))
+nearest <- function(X, centres) apply(X, 1, \(x) which.min(colSums((t(centres) - x)^2)))
+```
+
+1. Fit k-means with three clusters to each half
+2. Assign all 480 texts to the nearest centre of each solution with `nearest()`, and cross-tabulate the two assignments
+3. Repeat with k = 6. Which solution is more stable?
+
+```{r task-6, include = FALSE}
+nearest <- function(X, centres) apply(X, 1, \(x) which.min(colSums((t(centres) - x)^2)))
+agreement <- function(k) {
+  set.seed(3)
+  half <- sample(rep(1:2, length.out = nrow(S)))
+  set.seed(1)
+  a <- kmeans(S[half == 1, ], centers = k, nstart = 25)
+  set.seed(1)
+  b <- kmeans(S[half == 2, ], centers = k, nstart = 25)
+  tab <- table(nearest(S, a$centers), nearest(S, b$centers))
+  sum(apply(tab, 1, max)) / sum(tab)
+}
+stability <- tibble(k = 2:8, agreement = map_dbl(k, agreement))
+```
+
+## Checkpoint 6
+
+```{r check-6, echo = FALSE, fig.height = 2.9}
+ggplot(stability, aes(x = k, y = agreement)) +
+  geom_line(colour = muted) +
+  geom_point(colour = kingfisher, size = 3) +
+  scale_x_continuous(breaks = 2:8) +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+  labs(x = "Number of clusters k", y = "Texts in matching clusters")
+```
+
+For each cluster of the first half, the share of its texts that the second half puts together in one cluster. Agreement is `r round(100 * stability$agreement[stability$k == 3])`% for three clusters and `r round(100 * stability$agreement[stability$k == 6])`% for six.
+
+## Task 7: report
+
+Write a short methods and results paragraph. It should say:
+
+- what was clustered, and why you did not cluster the raw features
+- the method, its settings and the seed, and how you chose k, with the silhouette widths
+- how the clusters relate to the registers, how you named them, and how stable they were
+
+. . .
+
+Then swap with another pair: would a reviewer accept your number of clusters?
+
+## If you finish early
+
+- Open `?web_registers` and look at the true register means on the three dimensions. Which registers should be hardest to tell apart?
+- Compute the mean dimension scores of the six registers, and cluster these six rows with `hclust()`. Draw the dendrogram with `plot()`. Which registers merge first?
+- Fit `cluster::pam()` with three clusters and compare it with k-means
+
+## Summary
+
+::: {.takeaway}
+- On raw features, the features with the largest variances decide the clusters: standardise, or cluster dimension scores
+- With overlapping groups, elbow and silhouettes give no clear `k`, and the [silhouette width]{.hl} shows how weak the structure is
+- Compare clusters with known groups through a cross-table, and describe each cluster by its [profile]{.hl}
+- Check [stability]{.hl} on random halves before you interpret a cluster solution
+:::
+
+## References {.refs}
+
+- Biber, D. (1988). _Variation across speech and writing_. Cambridge University Press.
+- Ehret, K., & Taboada, M. (2021). Characterising online news comments: A multi-dimensional cruise through online registers. _Frontiers in Artificial Intelligence_, 4, 643770. https://doi.org/10.3389/frai.2021.643770
+- [James, G., Witten, D., Hastie, T., & Tibshirani, R. (2021). _An introduction to statistical learning: With applications in R_ (2nd ed.). Springer. Chapter 12. https://www.statlearning.com]{.hl}
+- Kaufman, L., & Rousseeuw, P. J. (1990). _Finding groups in data: An introduction to cluster analysis_. Wiley.
+
+## Sources of the animal facts {.refs}
+
+- Ballerini, M., Cabibbo, N., Candelier, R., Cavagna, A., Cisbani, E., Giardina, I., Lecomte, V., Orlandi, A., Parisi, G., Procaccini, A., Viale, M., & Zdravkovic, V. (2008). Interaction ruling animal collective behavior depends on topological rather than metric distance: Evidence from a field study. _PNAS_, 105(4), 1232–1237. https://doi.org/10.1073/pnas.0711437105
+- Cavagna, A., Cimarelli, A., Giardina, I., Parisi, G., Santagati, R., Stefanini, F., & Viale, M. (2010). Scale-free correlations in starling flocks. _PNAS_, 107(26), 11865–11870. https://doi.org/10.1073/pnas.1005766107
+- Gentner, T. Q., Fenn, K. M., Margoliash, D., & Nusbaum, H. C. (2006). Recursive syntactic pattern learning by songbirds. _Nature_, 440(7088), 1204–1207. https://doi.org/10.1038/nature04675
+- West, M. J., & King, A. P. (1990). Mozart's starling. _American Scientist_, 78(2), 106–114.
+
+## Slides and code
+
+<div class="qr-block">
+<img src="`r qr_uri`" alt="QR code linking to these slides">
+<div>
+<p>These slides</p>
+<p class="qr-link">mcanzi.de/advanced_statistics/<wbr>`r lecture_file`</p>
+<p>Code and all lectures</p>
+<p class="qr-link">github.com/mcanzi/advanced_statistics</p>
+</div>
+</div>

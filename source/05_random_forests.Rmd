@@ -50,7 +50,7 @@ options(width = 70, pillar.print_min = 4, pillar.print_max = 4)
 </style>
 
 ::: {.fact}
-`Did you know:` orangutans sometimes hold a bundle of leaves in front of their mouth when they give a "kiss squeak" at a predator. The leaves [lower the frequency]{.hl} of the call, and lower calls come from bigger orangutans.
+`Did you know:` orangutans sometimes hold a bundle of leaves in front of their mouth when they give a [kiss squeak]{.hl} at a predator. The leaves lower the frequency of the call, and lower calls come from bigger orangutans.
 
 _Source: Hardus et al. (2009), Proceedings of the Royal Society B_
 :::
@@ -109,7 +109,7 @@ Deletion is more likely before a consonant, especially in fast speech (left), le
 # Decision trees
 
 ::: {.fact}
-`Did you know:` orangutan kiss squeaks are highest when made with the lips alone, lower with a hand in front of the mouth, and [lowest]{.hl} with leaves.
+`Did you know:` orangutan kiss squeaks are highest in [pitch]{.hl} when made with the lips alone, lower with a hand in front of the mouth, and lowest with leaves.
 
 _Source: Hardus et al. (2009), Proceedings of the Royal Society B_
 :::
@@ -263,7 +263,7 @@ Education has no effect in our data. Whatever importance it gets comes from its 
 
 ## Partial dependence {.smaller}
 
-A [partial dependence plot]{.hl} sets every token to the same value of one predictor, predicts, averages, and repeats for each value (Friedman, 2001).
+A [partial dependence plot]{.hl} sets every token to the same value of one predictor, predicts, averages, and repeats for each value (Friedman, 2001). `{konstats}` has this function as `konstats::partial_dependence()`.
 
 ```{r}
 rf_prob <- ranger(f, data = td, num.trees = 500, probability = TRUE, seed = 1)
@@ -308,7 +308,7 @@ Before a consonant, deletion rises with speech rate; elsewhere it hardly changes
 # Forests and regression models
 
 ::: {.fact}
-`Did you know:` wild orangutans have the longest interbirth intervals of any mammal. Across seven field sites, mothers gave birth on average every [7.6 years]{.hl}.
+`Did you know:` wild orangutans have the longest [interbirth intervals]{.hl} of any mammal. Across seven field sites, mothers gave birth on average every 7.6 years.
 
 _Source: van Noordwijk et al. (2018), Journal of Human Evolution_
 :::

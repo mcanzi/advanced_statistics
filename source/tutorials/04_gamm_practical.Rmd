@@ -1,0 +1,343 @@
+---
+title: "GAMMs in practice"
+subtitle: "Tutorial 4"
+author: "Dr Massimiliano Canzi"
+output:
+  html_document:
+    theme: darkly
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+These exercises follow the tasks on the slides of lecture 4, "GAMMs in practice". Write your code in the empty chunks, and answer the questions in a sentence or two under each chunk. Section 4 goes beyond the slides.
+
+## Setup
+
+```{r}
+library(tidyverse)
+library(mgcv)
+library(tidygam)
+library(simling)
+```
+
+## The data
+
+`pupil_noise` comes from a simulated pupillometry experiment on listening effort. 24 participants heard 12 sentences in quiet and 12 in background noise. Pupil size was recorded from sentence onset, baseline-corrected and averaged into 100 ms bins from 0 to 3,000 ms.
+
+```{r}
+pdata <- pupil_noise
+glimpse(pdata)
+```
+
+The research question: does noise change the pupil response, and from what point in time? `?pupil_noise` gives the true model. Leave it closed until exercise 3.4.
+
+---
+
+## 1. Look at the data
+
+### 1.1 Rows and trajectories
+
+How many rows does `pdata` have, and how many trajectories (`trial_id`)? How many time bins does each trajectory have?
+
+::: solution
+
+```{r}
+nrow(pdata)
+n_distinct(pdata$trial_id)
+count(pdata, trial_id) |> distinct(n)
+```
+
+:::
+
+### 1.2 Mean curves
+
+Compute the mean pupil size per participant, condition and time bin. Plot one line per participant, with a panel for each condition.
+
+::: solution
+
+```{r}
+pdata |>
+  summarise(pupil = mean(pupil), .by = c(participant, condition, time)) |>
+  ggplot(aes(x = time, y = pupil, group = participant)) +
+  geom_line(alpha = 0.6) +
+  facet_wrap(~ condition) +
+  labs(x = "Time from sentence onset (ms)", y = "Pupil size (arbitrary units)")
+```
+
+In noise, the response tends to be larger and later, with a lot of variation between participants.
+
+:::
+
+### 1.3 What do you expect?
+
+Before fitting anything, write down what you expect the model to find: in which condition is the response larger, and when do the curves start to differ?
+
+---
+
+## 2. Building the model
+
+### 2.1 A first GAM
+
+Turn `condition` into an ordered factor with treatment contrasts, as in lecture 2, and fit a GAM with a reference smooth and a difference smooth over time. Complete the formula:
+
+```{r, eval = FALSE}
+pdata$condition_o <- as.ordered(pdata$condition)
+contrasts(pdata$condition_o) <- "contr.treatment"
+m_gam <- bam(pupil ~ ___ + s(time, k = 20) + s(time, by = ___, k = 20),
+             data = pdata, method = "ML")
+```
+
+Which level is the reference? What does each smooth in `summary(m_gam)` describe? Is `k = 20` enough? Check with `k.check()`.
+
+::: solution
+
+```{r}
+pdata$condition_o <- as.ordered(pdata$condition)
+contrasts(pdata$condition_o) <- "contr.treatment"
+m_gam <- bam(pupil ~ condition_o + s(time, k = 20) + s(time, by = condition_o, k = 20),
+             data = pdata, method = "ML")
+summary(m_gam)$s.table
+k.check(m_gam)
+```
+
+`quiet` is the first level, so it is the reference. `s(time)` is the curve in quiet, and `s(time):condition_onoise` is the difference between noise and quiet, apart from the difference in height in the parametric term `condition_onoise`.
+
+:::
+
+### 2.2 Residual autocorrelation
+
+This function computes the autocorrelation of residuals within trajectories, as in lecture 3. `{konstats}` has the same function as `konstats::resid_acf()`.
+
+```{r}
+resid_acf <- function(res, traj, max_lag = 8) {
+  d <- tibble(res, traj)
+  map(0:max_lag, \(l) d |>
+    mutate(res_lag = lag(res, l), .by = traj) |>
+    summarise(acf = cor(res, res_lag, use = "complete.obs")) |>
+    mutate(lag = l)) |>
+    list_rbind()
+}
+```
+
+Compute the autocorrelation of the residuals of `m_gam` within trajectories, and plot it against the lag.
+
+::: solution
+
+```{r}
+acf_gam <- resid_acf(residuals(m_gam), pdata$trial_id)
+ggplot(acf_gam, aes(x = lag, y = acf)) +
+  geom_hline(yintercept = 0) +
+  geom_segment(aes(xend = lag, yend = 0)) +
+  geom_point() +
+  labs(x = "Lag (bins)", y = "Autocorrelation")
+```
+
+Neighbouring residuals are strongly correlated, so the confidence intervals of `m_gam` are too narrow.
+
+:::
+
+### 2.3 Random smooths
+
+Every participant heard both conditions, so the comparison is within participants. Add random smooths for every combination of participant and condition. Complete the term:
+
+```{r, eval = FALSE}
+pdata$part_cond <- interaction(pdata$participant, pdata$condition)
+m_rs <- bam(pupil ~ condition_o + s(time, k = 20) + s(time, by = condition_o, k = 20) +
+              s(time, ___, bs = "fs", m = 1, k = 5),
+            data = pdata, method = "ML")
+```
+
+Why `part_cond` and not `participant`? How many levels does `part_cond` have, and how many coefficients do the random smooths add?
+
+::: solution
+
+```{r}
+pdata$part_cond <- interaction(pdata$participant, pdata$condition)
+m_rs <- bam(pupil ~ condition_o + s(time, k = 20) + s(time, by = condition_o, k = 20) +
+              s(time, part_cond, bs = "fs", m = 1, k = 5),
+            data = pdata, method = "ML")
+nlevels(pdata$part_cond)
+```
+
+With `participant` alone, every participant would get one curve for both conditions, and the model would assume that noise changes all participants' curves in the same way. `part_cond` has 48 levels, and with `k = 5` the random smooths add 48 × 5 = 240 coefficients.
+
+:::
+
+### 2.4 An AR1 error model
+
+Add an AR1 error model. Mark the first bin of every trajectory in `AR.start`:
+
+```{r, eval = FALSE}
+rho <- itsadug::start_value_rho(m_rs)
+m_ar <- bam(pupil ~ condition_o + s(time, k = 20) + s(time, by = condition_o, k = 20) +
+              s(time, part_cond, bs = "fs", m = 1, k = 5),
+            data = pdata, method = "ML", AR.start = ___, rho = rho)
+```
+
+Is the data frame sorted the way the AR1 model needs? Compare the autocorrelation of `residuals(m_gam)`, `residuals(m_rs)` and `m_ar$std.rsd` in one plot.
+
+::: solution
+
+```{r}
+rho <- itsadug::start_value_rho(m_rs)
+m_ar <- bam(pupil ~ condition_o + s(time, k = 20) + s(time, by = condition_o, k = 20) +
+              s(time, part_cond, bs = "fs", m = 1, k = 5),
+            data = pdata, method = "ML", AR.start = pdata$time == 0, rho = rho)
+rho
+```
+
+The data are sorted by trajectory and time: within each `trial_id`, `time` runs from 0 to 3,000.
+
+```{r}
+list(`GAM` = residuals(m_gam),
+     `+ random smooths` = residuals(m_rs),
+     `+ AR1` = m_ar$std.rsd) |>
+  imap(\(r, name) mutate(resid_acf(r, pdata$trial_id), model = name)) |>
+  list_rbind() |>
+  mutate(model = fct_inorder(model)) |>
+  ggplot(aes(x = lag, y = acf)) +
+  geom_hline(yintercept = 0) +
+  geom_segment(aes(xend = lag, yend = 0)) +
+  geom_point() +
+  facet_wrap(~ model) +
+  labs(x = "Lag (bins)", y = "Autocorrelation")
+```
+
+With the AR1 model, little autocorrelation remains.
+
+:::
+
+---
+
+## 3. Results
+
+### 3.1 Check the model
+
+Run `k.check(m_ar)`. Plot the standardised residuals (`m_ar$std.rsd`) against the fitted values, and make a QQ plot. Would you trust the confidence intervals of `m_ar` more than those of `m_gam`?
+
+::: solution
+
+```{r}
+k.check(m_ar)
+ggplot(tibble(fitted = fitted(m_ar), res = m_ar$std.rsd), aes(fitted, res)) +
+  geom_point(alpha = 0.2) +
+  labs(x = "Fitted pupil size", y = "Standardised residual")
+ggplot(tibble(res = m_ar$std.rsd), aes(sample = res)) +
+  geom_qq(alpha = 0.3) +
+  geom_qq_line()
+```
+
+`m_ar` takes the dependencies within participants and within trajectories into account, so its confidence intervals are more trustworthy than those of `m_gam`, which treats all `r nrow(pdata)` bins as independent.
+
+:::
+
+### 3.2 Test the effect of noise
+
+Fit a null model without any term for condition, and compare it with `m_ar` using `itsadug::compareML()`. Which terms must the null model keep from `m_ar`, and which must go?
+
+::: solution
+
+```{r}
+m_null <- bam(pupil ~ s(time, k = 20) + s(time, part_cond, bs = "fs", m = 1, k = 5),
+              data = pdata, method = "ML", AR.start = pdata$time == 0, rho = rho)
+itsadug::compareML(m_null, m_ar)
+```
+
+The null model drops `condition_o` and the difference smooth, and keeps the random smooths, the AR1 model and the same `rho`. Both models are fitted with `method = "ML"`.
+
+:::
+
+### 3.3 Plot the results
+
+With `{tidygam}`, plot the predicted curves for the two conditions with 95% confidence intervals for an average participant, and the difference smooth, noise minus quiet, with a line at zero. Use `exclude_terms` for the random smooths. Give the axes titles with units, and say in a caption what the ribbons are.
+
+::: solution
+
+```{r}
+predict_gam(m_ar, series = "time", length_out = 61, exclude_terms = "s(time,part_cond)") |>
+  ggplot(aes(x = time, y = pupil, colour = condition_o, fill = condition_o)) +
+  geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci), alpha = 0.25, colour = NA) +
+  geom_line(linewidth = 1.2) +
+  labs(x = "Time from sentence onset (ms)", y = "Predicted pupil size", colour = NULL, fill = NULL,
+       caption = "Lines and ribbons: predictions for an average participant, with 95% CIs.")
+```
+
+```{r}
+pupil_diff <- get_difference(m_ar, "time", list(condition_o = c("noise", "quiet")), length_out = 61,
+                             exclude_terms = "s(time,part_cond)") |>
+  as_tibble()
+ggplot(pupil_diff, aes(x = time, y = diff)) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci), alpha = 0.25) +
+  geom_line(linewidth = 1.2) +
+  labs(x = "Time from sentence onset (ms)", y = "Noise − quiet",
+       caption = "Difference smooth with its 95% confidence interval.")
+```
+
+:::
+
+### 3.4 Interpret and report
+
+From roughly what time does the confidence interval of the difference exclude zero? Is that the same as "noise has an effect from that time on"? Write a reporting paragraph: the model, the random effects and error model with their settings, the test and its result, and a figure caption. Then open `?pupil_noise`. Did your model find the effects that were built in?
+
+::: solution
+
+The time where the interval first excludes zero depends on the number of trajectories and the noise in the data as well as on the effect. With more data, the same effect would reach significance earlier, so this time is not an estimate of when the effect begins.
+
+:::
+
+---
+
+## 4. Beyond the slides
+
+### 4.1 Fatigue
+
+The simulation has one more effect built in: the pupil response gets smaller over the 12 trials. Add `s(trial, k = 5)` to `m_ar`, and then `ti(time, trial, k = c(10, 5))`. Compare the models with `compareML()`. Does fatigue only shrink the curve, or does it change its shape too?
+
+::: solution
+
+```{r}
+m_trial <- bam(pupil ~ condition_o + s(time, k = 20) + s(time, by = condition_o, k = 20) +
+                 s(trial, k = 5) + s(time, part_cond, bs = "fs", m = 1, k = 5),
+               data = pdata, method = "ML", AR.start = pdata$time == 0, rho = rho)
+m_trial_ti <- bam(pupil ~ condition_o + s(time, k = 20) + s(time, by = condition_o, k = 20) +
+                    s(trial, k = 5) + ti(time, trial, k = c(10, 5)) +
+                    s(time, part_cond, bs = "fs", m = 1, k = 5),
+                  data = pdata, method = "ML", AR.start = pdata$time == 0, rho = rho)
+itsadug::compareML(m_ar, m_trial)
+itsadug::compareML(m_trial, m_trial_ti)
+```
+
+:::
+
+### 4.2 A binary smooth
+
+Lecture 2 introduced the binary smooth, which tests the difference in height and in shape with a single term. Fit `m_ar` again with a binary smooth for noise in place of `condition_o` and its difference smooth, and read the row of the binary smooth in the summary. Do you reach the same conclusion as in exercise 3.2?
+
+::: solution
+
+```{r}
+pdata$is_noise <- as.numeric(pdata$condition == "noise")
+m_bin <- bam(pupil ~ s(time, k = 20) + s(time, by = is_noise, k = 20) +
+               s(time, part_cond, bs = "fs", m = 1, k = 5),
+             data = pdata, method = "ML", AR.start = pdata$time == 0, rho = rho)
+summary(m_bin)$s.table
+```
+
+:::
+
+### 4.3 Where do the curves differ?
+
+Use `pupil_diff` from exercise 3.3 to find, in code, the time bins in which the confidence interval of the difference excludes zero. Is there one stretch of time, or several?
+
+::: solution
+
+```{r}
+pupil_diff |>
+  filter(lower_ci > 0 | upper_ci < 0) |>
+  summarise(from = min(time), to = max(time), bins = n())
+```
+
+:::
