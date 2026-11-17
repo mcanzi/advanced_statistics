@@ -1,0 +1,6 @@
+# The tutorials are a project of their own, so that rendering one here does
+# not pick up the slide options and the output folder (../docs) of
+# ../_quarto.yml. Each tutorial's own YAML has everything it needs, because
+# participants get the file on its own.
+project:
+  type: default

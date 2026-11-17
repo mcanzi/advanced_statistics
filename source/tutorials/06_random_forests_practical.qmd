@@ -2,14 +2,15 @@
 title: "Random forests in practice"
 subtitle: "Tutorial 6"
 author: "Dr Massimiliano Canzi"
-output:
-  html_document:
+format:
+  html:
     theme: darkly
+    embed-resources: true
+execute:
+  echo: true
+  message: false
+  warning: false
 ---
-
-```{r setup, include = FALSE}
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
-```
 
 These exercises follow the tasks on the slides of lecture 6, "Random forests in practice". Write your code in the empty chunks, and answer the questions in a sentence or two under each chunk. Section 4 goes beyond the slides.
 
@@ -90,7 +91,8 @@ Half of the tokens come from each group, so the baseline is 50%.
 
 Fit a random forest with all six measures and 1,000 trees, and ask for permutation importance. Complete the call:
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 f_all <- l1 ~ vot + vowel_ratio + rate + f0 + h1h2 + intensity
 rf_all <- ranger(f_all, data = accent, num.trees = 1000, importance = ___, seed = 1)
 ```
@@ -152,7 +154,8 @@ Each speaker's tokens cluster tightly, while English and Italian speakers are mi
 
 Complete the test set in this function, which fits a forest on four fifths of the speakers and predicts the other fifth, five times:
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 set.seed(2)
 folds <- distinct(accent, speaker, l1) |>
   mutate(fold = sample(rep(1:5, length.out = n())), .by = l1)
@@ -277,7 +280,8 @@ tibble(mtry = 1:3) |>
 
 Fit a mixed logistic regression with the three standardised measures and a random intercept by speaker:
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 lme4::glmer(l1 ~ scale(vot) + scale(vowel_ratio) + scale(rate) + (1 | speaker),
             data = accent, family = binomial)
 ```

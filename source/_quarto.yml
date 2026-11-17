@@ -1,8 +1,9 @@
 project:
   output-dir: ../docs
-  # The sessions only (not the tutorials, which are .Rmd sheets for {konstats})
+  # The sessions only; the tutorials are a project of their own (tutorials/_quarto.yml)
   render:
     - "[0-9][0-9]_*.qmd"
+    - "!tutorials/"
 
 author: "Dr Massimiliano Canzi"
 

@@ -21,7 +21,7 @@ The slides are online at [mcanzi.de/advanced_statistics](https://mcanzi.de/advan
 
 ## Tutorials
 
-The hands-on sessions (4, 6, 9 and 11) come with a tutorial: the tasks of the slides as exercises, with an empty chunk for each answer, and a last section that goes beyond the slides. In class I use the slides; participants can work through the tutorial on their own. The sources, with solutions, are in `source/tutorials`. Knit `source/render_tutorials.Rmd` to check that every solution runs and to write the participants' sheets into `docs/tutorials`. The same sheets are in {konstats}, so `konstats::get_tutorial(4, ".", course = "advanced")` copies one into a project folder.
+The hands-on sessions (4, 6, 9 and 11) come with a tutorial: the tasks of the slides as exercises, with an empty chunk for each answer, and a last section that goes beyond the slides. In class I use the slides; participants can work through the tutorial on their own. The tutorials are Quarto documents; the sources, with solutions, are in `source/tutorials`, a Quarto project of its own. Render `source/tutorials/render_tutorials.qmd` to check that every solution runs and to write the participants' sheets into `docs/tutorials`. The same sheets are in {konstats}, so `konstats::get_tutorial(4, ".", course = "advanced")` copies one into a project folder.
 
 ## Rendering the slides
 

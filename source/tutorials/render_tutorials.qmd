@@ -1,0 +1,175 @@
+---
+title: "Render all tutorials"
+format:
+  html:
+    embed-resources: true
+---
+
+Render this file (`quarto render render_tutorials.qmd` in this folder, or the Render button in RStudio), or run its chunks, to make the participants' sheet of every tutorial in this folder. The practical lectures (4, 6, 9 and 11) have a tutorial each, a Quarto document named like the lecture (`04_gamm_practical.qmd`), with the lecture's title as `title` and `Tutorial 4` as `subtitle`. In class I use the slides of the practical lecture; the tutorial has the same tasks as exercises, for participants to work through on their own, and a last section that goes beyond the slides.
+
+Each tutorial is written once, with its solutions, and this file makes:
+
+- a check: the whole tutorial, solutions included, is rendered with Quarto in a temporary folder, so every solution runs from top to bottom. Rendering stops at the first tutorial that fails, and the error names it;
+- the participants' sheet, `docs/tutorials/04_gamm_practical.qmd`: the same file without the solutions, with an empty chunk where each piece of solution code was.
+
+This folder is a Quarto project of its own (`_quarto.yml`), so that rendering a tutorial or this file here does not use the slide options of `source/_quarto.yml` or write into `docs`. Each tutorial's YAML has all its options, because participants get the file on its own.
+
+In a tutorial, everything inside a `::: solution` block counts as solution, text included. Everything else appears on the sheet, including hints and code that participants get, such as a helper function or code with `___` to complete. Classes on headings, such as `{.smaller}`, are left out of the sheet. Unlike the Statistics tutorials, these have no slides of their own and no weekly assignment.
+
+The sheets are also part of `{konstats}`, in `inst/sheets/advanced`, so that `konstats::get_tutorial(4, ".", course = "advanced")` copies them. When the konstats repository sits next to this one (`../../../konstats` from this folder), the last chunk copies the sheets there too; commit them in konstats as well.
+
+## Reading a tutorial
+
+`read_tutor()` splits a tutorial into its YAML header and its body. `classify()` records for each line of the body whether it belongs to a code chunk and to which solution block (0 for none), and it marks the lines that open or close a solution block.
+
+```{r}
+#| label: reading
+read_tutor <- function(path) {
+  lines <- readLines(path, encoding = "UTF-8")
+  fences <- which(lines == "---")
+  list(yaml = lines[seq_len(fences[2])], body = lines[-seq_len(fences[2])])
+}
+
+classify <- function(body) {
+  n <- length(body)
+  chunk <- logical(n)
+  sol <- integer(n)
+  fence <- logical(n)
+  in_chunk <- FALSE
+  in_sol <- FALSE
+  block <- 0L
+  for (i in seq_len(n)) {
+    line <- body[i]
+    if (!in_chunk && grepl("^:::+ *\\{?\\.?solution", line)) {
+      block <- block + 1L
+      in_sol <- TRUE
+      fence[i] <- TRUE
+      sol[i] <- block
+      next
+    }
+    if (!in_chunk && in_sol && grepl("^:::+ *$", line)) {
+      in_sol <- FALSE
+      fence[i] <- TRUE
+      sol[i] <- block
+      next
+    }
+    if (grepl("^```", line)) {
+      chunk[i] <- TRUE
+      in_chunk <- !in_chunk
+    } else {
+      chunk[i] <- in_chunk
+    }
+    if (in_sol) sol[i] <- block
+  }
+  data.frame(line = body, chunk = chunk, sol = sol, fence = fence)
+}
+
+squeeze <- function(x) {
+  blank <- x == ""
+  x[!(blank & c(FALSE, head(blank, -1)))]
+}
+```
+
+## The participants' sheet
+
+Each solution block becomes one empty chunk if it contains code, and disappears if it is only text.
+
+```{r}
+#| label: sheet
+sheet_lines <- function(d) {
+  out <- character(0)
+  i <- 1
+  while (i <= nrow(d)) {
+    if (d$sol[i] > 0) {
+      rows <- which(d$sol == d$sol[i])
+      if (any(grepl("^```\\{r", d$line[rows]))) out <- c(out, "```{r}", "", "```")
+      i <- max(rows) + 1
+    } else {
+      line <- d$line[i]
+      if (!d$chunk[i] && grepl("^#+ ", line)) line <- sub(" *\\{[^}]*\\} *$", "", line)
+      out <- c(out, line)
+      i <- i + 1
+    }
+  }
+  squeeze(out)
+}
+```
+
+## Making the sheets
+
+`check_tutorial()` renders the full tutorial with Quarto, in a temporary folder, and stops with the name of the tutorial and Quarto's last lines of output if anything fails. Quarto runs the R code in a fresh R session of its own. `quarto_bin()` finds Quarto: the `QUARTO_PATH` environment variable, then the `PATH`, then the copy that comes with RStudio. `make_tutorial()` runs the check and writes the sheet.
+
+```{r}
+#| label: make
+quarto_bin <- function() {
+  rstudio <- c("/Applications/RStudio.app/Contents/Resources/app/quarto/bin/quarto",
+               "C:/Program Files/RStudio/resources/app/bin/quarto/bin/quarto.exe",
+               "/usr/lib/rstudio/resources/app/bin/quarto/bin/quarto")
+  candidates <- c(Sys.getenv("QUARTO_PATH"), Sys.which("quarto"), rstudio)
+  found <- candidates[nzchar(candidates) & file.exists(candidates)]
+  if (length(found) == 0) stop("Quarto not found: install it from https://quarto.org, or set QUARTO_PATH.", call. = FALSE)
+  found[1]
+}
+
+check_tutorial <- function(path) {
+  tmp <- tempfile("tutorial_")
+  dir.create(tmp)
+  on.exit(unlink(tmp, recursive = TRUE))
+  file.copy(path, tmp)
+  out <- withr::with_dir(tmp, suppressWarnings(
+    system2(quarto_bin(), c("render", shQuote(basename(path))), stdout = TRUE, stderr = TRUE)
+  ))
+  status <- attr(out, "status")
+  if (!is.null(status) && status != 0) {
+    stop(basename(path), " does not render:\n", paste(tail(out, 15), collapse = "\n"), call. = FALSE)
+  }
+}
+
+make_tutorial <- function(path, out_dir) {
+  check_tutorial(path)
+  tutor <- read_tutor(path)
+  sheet <- c(tutor$yaml, sheet_lines(classify(tutor$body)))
+  target <- file.path(out_dir, basename(path))
+  writeLines(sheet, target, useBytes = TRUE)
+  target
+}
+```
+
+```{r}
+#| label: render
+#| message: true
+out_dir <- file.path("..", "..", "docs", "tutorials")
+dir.create(out_dir, showWarnings = FALSE)
+tutorials <- list.files(".", pattern = "^[0-9]{2}_.*\\.qmd$", full.names = TRUE)
+for (tutorial in tutorials) {
+  message("Checking and writing ", basename(tutorial))
+  make_tutorial(tutorial, out_dir)
+}
+
+# sheets left from tutorials that were renamed, or from the .Rmd versions
+remove_old_sheets <- function(dir) {
+  old <- setdiff(list.files(dir, pattern = "^[0-9]{2}_.*\\.(Rmd|qmd)$"), basename(tutorials))
+  if (length(old) > 0) message("Removed old sheets from ", dir, ": ", paste(old, collapse = ", "))
+  unlink(file.path(dir, old))
+}
+remove_old_sheets(out_dir)
+```
+
+```{r}
+#| label: konstats
+konstats_sheets <- file.path("..", "..", "..", "konstats", "inst", "sheets", "advanced")
+if (dir.exists(dirname(konstats_sheets))) {
+  dir.create(konstats_sheets, showWarnings = FALSE)
+  file.copy(file.path(out_dir, basename(tutorials)), konstats_sheets, overwrite = TRUE)
+  remove_old_sheets(konstats_sheets)
+  message("Copied the sheets to ", normalizePath(konstats_sheets))
+} else {
+  message("No konstats repository next to this one: copy the sheets by hand.")
+}
+```
+
+```{r}
+#| label: rendered
+sheets <- file.path(out_dir, basename(tutorials))
+knitr::kable(data.frame(sheet = basename(sheets), updated = format(file.mtime(sheets), "%d %b %Y %H:%M")))
+```
