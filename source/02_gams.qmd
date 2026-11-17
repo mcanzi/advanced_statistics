@@ -1,34 +1,12 @@
 ---
 title: "Generalised additive models"
 subtitle: "Modelling curves with smooth terms"
-author: "Dr Massimiliano Canzi"
-knit: (function(input, ...) rmarkdown::render(input, output_dir = file.path(dirname(input), "..", "docs")))
-output:
-  revealjs::revealjs_presentation:
-    theme: black
-    css: theme-buttercup.css
-    highlight: zenburn
-    mathjax: null
-    incremental: true
-    transition: fade
-    background_transition: fade
-    self_contained: true
-    reveal_options:
-      width: 1050
-      height: 700
-      slideNumber: "c/t"
-      showSlideNumber: all
-      controls: true
-      touch: true
-      transitionSpeed: fast
-      navigationMode: linear
+footer: "Generalised additive models"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
-                      comment = "",
-                      fig.width = 10, fig.height = 4.4, out.width = "100%")
-
+```{r}
+#| label: setup
+#| include: false
 library(tidyverse)
 library(patchwork)
 library(mgcv)
@@ -44,7 +22,6 @@ options(width = 70, pillar.print_min = 4, pillar.print_max = 4)
 
 <style>
   :root {
-    --footer-text:  "Generalised additive models";
     --qr:           `r qr_css`;
     --lecture:      `r lecture_label`;
   }
@@ -86,7 +63,8 @@ price
 
 ## The trajectories
 
-```{r, fig.height = 2.5}
+```{r}
+#| fig-height: 2.5
 ggplot(price, aes(x = time, y = f2, group = traj)) +
   geom_line(colour = kingfisher, alpha = 0.25) +
   facet_wrap(~ l1) +
@@ -105,7 +83,10 @@ _Source: Payne & McVay (1971), Science_
 
 ## A straight line
 
-```{r straight-line, echo = FALSE, fig.height = 3.3}
+```{r}
+#| label: straight-line
+#| echo: false
+#| fig-height: 3.3
 mean_traj <- price |>
   filter(l1 == "English") |>
   summarise(f2 = mean(f2), .by = time)
@@ -126,7 +107,10 @@ The line misses the shape, and the residuals follow a pattern: neighbouring resi
 
 ## Polynomials
 
-```{r polynomials, echo = FALSE, fig.height = 3.0}
+```{r}
+#| label: polynomials
+#| echo: false
+#| fig-height: 3.0
 map(c(2, 3, 9), \(d) {
   ggplot(mean_traj, aes(time, f2)) +
     geom_smooth(method = "lm", formula = y ~ poly(x, d), se = FALSE, colour = pandan,
@@ -154,13 +138,18 @@ _Source: Noad et al. (2000), Nature_
 
 A generalised additive model can contain [smooth terms]{.hl} next to the usual parametric terms:
 
-<div class="formula">y = α + β₁ · x₁ + f(x₂) + e</div>
+::: {.formula}
+y = α + β₁ · x₁ + f(x₂) + e
+:::
 
 `f(x₂)` is a smooth function of `x₂` whose shape is estimated from the data. It is built as a sum of simpler functions, the [basis functions]{.hl}, much as a polynomial is a sum of powers of `x`. A [smoothing penalty]{.hl} keeps it from following the noise.
 
 ## Basis functions
 
-```{r basis, echo = FALSE, fig.height = 3.4}
+```{r}
+#| label: basis
+#| echo: false
+#| fig-height: 3.4
 m_mean <- gam(f2 ~ s(time, bs = "cr", k = 10), data = mean_traj)
 grid <- tibble(time = 0:100)
 X <- predict(m_mean, newdata = grid, type = "lpmatrix")
@@ -192,7 +181,10 @@ Each basis function is multiplied by a coefficient; the sum (salmon), plus the i
 
 ## The smoothing parameter
 
-```{r penalty, echo = FALSE, fig.height = 3.6}
+```{r}
+#| label: penalty
+#| echo: false
+#| fig-height: 3.6
 sp_hat <- m_mean$sp
 fits <- map(c(1e-3, 1, 1e3, 1e6), \(m) {
   mod <- gam(f2 ~ s(time, bs = "cr", k = 10), data = mean_traj, sp = sp_hat * m)
@@ -246,7 +238,8 @@ The F test asks whether a smooth is flat, so two identical curves would both com
 
 ## Plotting with `{tidygam}`
 
-```{r, fig.height = 2.8}
+```{r}
+#| fig-height: 2.8
 m1_pred <- predict_gam(m1, series = "time", length_out = 50)
 plot(m1_pred, series = "time", comparison = "l1")
 ```
@@ -255,7 +248,8 @@ plot(m1_pred, series = "time", comparison = "l1")
 
 ## Your own plot {.smaller}
 
-```{r, fig.height = 3.0}
+```{r}
+#| fig-height: 3.0
 ggplot(m1_pred, aes(x = time, y = f2, colour = l1, fill = l1)) +
   geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci), alpha = 0.3, colour = NA) +
   geom_line(linewidth = 1.2) +
@@ -318,7 +312,8 @@ round(summary(m2)$s.table, 2)
 
 ## Plotting the difference {.smaller}
 
-```{r, fig.height = 3.0}
+```{r}
+#| fig-height: 3.0
 m2_diff <- get_difference(m2, "time", list(l1_o = c("Italian", "English")), length_out = 50)
 ggplot(m2_diff, aes(x = time, y = diff)) +
   geom_hline(yintercept = 0, colour = muted, linetype = "dashed") +
@@ -340,7 +335,8 @@ The null model drops both the height difference and the difference smooth. Both 
 
 ## The binary smooth
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 price <- mutate(price, is_italian = as.numeric(l1 == "Italian"))
 m2_bin <- bam(f2 ~ s(time, k = 10) + s(time, by = is_italian, k = 10),
               data = price, method = "ML")
@@ -365,7 +361,8 @@ He calls the binary smooth probably ideal when, as here, a single difference bet
 
 These models treat all 2,200 measurements as independent, although 11 come from each token and 110 from each speaker.
 
-```{r, fig.height = 2.3}
+```{r}
+#| fig-height: 2.3
 tibble(res = residuals(m2), lagged = lag(res), time = price$time) |>
   filter(time > 0) |>
   ggplot(aes(x = lagged, y = res)) +

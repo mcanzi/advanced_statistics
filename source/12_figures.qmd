@@ -1,34 +1,12 @@
 ---
 title: "Figures for publication"
 subtitle: "Honest, accessible and ready for print"
-author: "Dr Massimiliano Canzi"
-knit: (function(input, ...) rmarkdown::render(input, output_dir = file.path(dirname(input), "..", "docs")))
-output:
-  revealjs::revealjs_presentation:
-    theme: black
-    css: theme-buttercup.css
-    highlight: zenburn
-    mathjax: null
-    incremental: true
-    transition: fade
-    background_transition: fade
-    self_contained: true
-    reveal_options:
-      width: 1050
-      height: 700
-      slideNumber: "c/t"
-      showSlideNumber: all
-      controls: true
-      touch: true
-      transitionSpeed: fast
-      navigationMode: linear
+footer: "Figures for publication"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
-                      comment = "",
-                      fig.width = 10, fig.height = 4.4, out.width = "100%")
-
+```{r}
+#| label: setup
+#| include: false
 library(tidyverse)
 library(patchwork)
 library(lme4)
@@ -46,7 +24,6 @@ options(width = 70, pillar.print_min = 4, pillar.print_max = 4)
 
 <style>
   :root {
-    --footer-text:  "Figures for publication";
     --qr:           `r qr_css`;
     --lecture:      `r lecture_label`;
   }
@@ -99,7 +76,8 @@ A bar chart of group means shows only the size of the difference.
 
 ## The dynamite plot {.smaller}
 
-```{r, fig.height = 2.7}
+```{r}
+#| fig-height: 2.7
 lex |>
   summarise(mean = mean(rt), se = sd(rt) / sqrt(n()), .by = group) |>
   ggplot(aes(x = group, y = mean)) +
@@ -111,7 +89,10 @@ A [dynamite plot]{.hl} shows two numbers for 1,200 responses from 30 people. The
 
 ## What bars hide
 
-```{r bars-hide, echo = FALSE, fig.height = 3.4}
+```{r}
+#| label: bars-hide
+#| echo: false
+#| fig-height: 3.4
 set.seed(3)
 hidden <- bind_rows(
   tibble(group = "Construction A", y = rnorm(60, 4, 0.9)),
@@ -136,7 +117,8 @@ Three sentence types with the same mean acceptability: one bell shape, two clust
 
 ## Which points? {.smaller}
 
-```{r, fig.height = 2.7}
+```{r}
+#| fig-height: 2.7
 p_trials <- ggplot(lex, aes(group, rt)) +
   geom_jitter(width = 0.15, alpha = 0.1, colour = kingfisher) + labs(title = "Trials")
 p_people <- lex |>
@@ -150,7 +132,8 @@ Plot the [unit of analysis]{.hl} your claim is about. A difference between group
 
 ## Show the data {.smaller}
 
-```{r, fig.height = 2.8}
+```{r}
+#| fig-height: 2.8
 participant_means <- summarise(lex, rt = mean(rt), .by = c(participant, group))
 ggplot(participant_means, aes(x = group, y = rt)) +
   geom_jitter(width = 0.1, height = 0, colour = muted, size = 2.5) +
@@ -164,7 +147,10 @@ Every participant, plus the group mean and its 95% confidence interval, moved to
 
 ## Which error bar?
 
-```{r errorbars, echo = FALSE, fig.height = 3.0}
+```{r}
+#| label: errorbars
+#| echo: false
+#| fig-height: 3.0
 l1 <- filter(participant_means, group == "L1")$rt
 tibble(type = factor(c("± 1 SD", "± 1 SE", "95% CI"), levels = c("± 1 SD", "± 1 SE", "95% CI")),
        half = c(sd(l1), sd(l1) / sqrt(length(l1)), qt(0.975, length(l1) - 1) * sd(l1) / sqrt(length(l1)))) |>
@@ -180,7 +166,8 @@ tibble(type = factor(c("± 1 SD", "± 1 SE", "95% CI"), levels = c("± 1 SD", "�
 
 ## Distributions: raincloud {.smaller}
 
-```{r, fig.height = 3.0}
+```{r}
+#| fig-height: 3.0
 ggplot(lex, aes(x = rt, y = group, fill = group)) +
   geom_density_ridges(jittered_points = TRUE, position = "raincloud", colour = mist,
                       alpha = 0.6, scale = 0.7, point_colour = mist, point_alpha = 0.2, point_size = 0.7,
@@ -219,7 +206,10 @@ _Sources: Prestrud (1991), Arctic; Norwegian Polar Institute_
 
 ## Before and after
 
-```{r before-after, echo = FALSE, fig.height = 3.6}
+```{r}
+#| label: before-after
+#| echo: false
+#| fig-height: 3.6
 pm <- participant_means
 p_before <- ggplot(pm, aes(group, rt, fill = group)) +
   geom_boxplot(colour = "black") +
@@ -258,7 +248,8 @@ group_colours <- c(L1 = okabe[2], L2 = okabe[3])
 
 ## Redundant coding {.smaller}
 
-```{r, fig.height = 2.7}
+```{r}
+#| fig-height: 2.7
 word_group_means <- summarise(lex, rt = mean(rt), .by = c(word, log_freq, group))
 ggplot(word_group_means, aes(x = log_freq, y = rt, fill = group, shape = group)) +
   geom_point(size = 3, colour = floor_col, stroke = 0.6) +
@@ -272,7 +263,8 @@ Colour and shape show the same variable ([redundant coding]{.hl}), so the groups
 
 ## Order categories {.smaller}
 
-```{r, fig.height = 3.0}
+```{r}
+#| fig-height: 3.0
 word_means <- summarise(lex, rt = mean(rt), .by = c(word, log_freq))
 twelve <- filter(word_means, word %in% sprintf("w%02d", 1:12))
 p_alpha <- ggplot(twelve, aes(x = rt, y = word)) + geom_point(colour = kingfisher, size = 3)
@@ -285,7 +277,8 @@ Alphabetical order is rarely the order that matters. `fct_reorder()` sorts the c
 
 ## Spaghetti
 
-```{r, fig.height = 2.8}
+```{r}
+#| fig-height: 2.8
 ggplot(lex, aes(x = log_freq, y = rt, group = participant, colour = group)) +
   geom_smooth(method = "lm", se = FALSE, linewidth = 0.6) +
   labs(x = "log10 frequency", y = "Fitted RT (ms)", colour = NULL)
@@ -295,7 +288,8 @@ In this [spaghetti plot]{.hl}, thirty overlapping lines make it impossible to fo
 
 ## Small multiples with context {.smaller}
 
-```{r, fig.height = 2.6}
+```{r}
+#| fig-height: 2.6
 some <- filter(lex, participant %in% c("P01", "P02", "P16", "P17"))
 others <- rename(lex, id = participant)
 ggplot(some, aes(x = log_freq, y = rt)) +
@@ -332,7 +326,8 @@ _Source: Prestrud (1991), Arctic_
 
 ## The ribbon of `geom_smooth()` {.smaller}
 
-```{r, fig.height = 3.2}
+```{r}
+#| fig-height: 3.2
 ggplot(lex, aes(x = log_freq, y = rt, colour = group, fill = group)) +
   geom_point(alpha = 0.05) +
   geom_smooth(method = "lm") +
@@ -368,7 +363,8 @@ Predicted RTs for each group across the frequency range, with `length_c` held at
 
 ## Your own prediction plot {.smaller}
 
-```{r, fig.height = 2.6}
+```{r}
+#| fig-height: 2.6
 ggplot(pred, aes(x = log_freq, y = predicted, colour = group, fill = group)) +
   geom_point(data = word_group_means, aes(y = rt), alpha = 0.4, size = 1.5) +
   geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.25, colour = NA) +
@@ -382,7 +378,8 @@ ggplot(pred, aes(x = log_freq, y = predicted, colour = group, fill = group)) +
 
 ## A coefficient plot {.smaller}
 
-```{r, fig.height = 2.5}
+```{r}
+#| fig-height: 2.5
 coef(summary(m4)) |>
   as_tibble(rownames = "term") |>
   filter(term != "(Intercept)") |>
@@ -413,7 +410,8 @@ _Source: Scholander et al. (1950), as summarised by Underwood & Reynolds (1980)_
 
 ## Titles that say something
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 labs(title = "Frequency speeds up L2 speakers more than L1 speakers",
      subtitle = "Mixed-model predictions with 95% confidence intervals",
      caption = "30 participants, 40 words. Points: word means.")
@@ -424,7 +422,8 @@ labs(title = "Frequency speeds up L2 speakers more than L1 speakers",
 
 ## Reference lines and notes {.smaller}
 
-```{r, fig.height = 3.0}
+```{r}
+#| fig-height: 3.0
 ggplot(participant_means, aes(x = group, y = rt)) +
   geom_hline(yintercept = mean(participant_means$rt), colour = muted, linetype = "dashed") +
   geom_jitter(width = 0.1, height = 0, colour = kingfisher, size = 2.5) +
@@ -438,7 +437,8 @@ ggplot(participant_means, aes(x = group, y = rt)) +
 
 ## Labels that move aside {.smaller}
 
-```{r, fig.height = 2.9}
+```{r}
+#| fig-height: 2.9
 slowest <- slice_max(word_means, rt, n = 5)
 ggplot(word_means, aes(x = log_freq, y = rt)) +
   geom_point(colour = kingfisher, size = 2.5) +
@@ -451,7 +451,8 @@ ggplot(word_means, aes(x = log_freq, y = rt)) +
 
 ## Combining figures {.smaller}
 
-```{r, fig.height = 2.4}
+```{r}
+#| fig-height: 2.4
 p_pred <- ggplot(pred, aes(x = log_freq, y = predicted, colour = group, fill = group)) +
   geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.25, colour = NA) +
   geom_line(linewidth = 1.2) + labs(x = "log10 frequency", y = "Predicted RT (ms)") +
@@ -484,7 +485,8 @@ Write the [theme function]{.hl} once, keep it in a file, and `source()` it at th
 
 ## The theme in use {.smaller}
 
-```{r, fig.height = 2.9}
+```{r}
+#| fig-height: 2.9
 p_pred +
   scale_colour_manual(values = group_colours) +
   scale_fill_manual(values = group_colours) +
@@ -497,7 +499,10 @@ Panel B again, with the paper's theme and the Okabe–Ito colours.
 
 ## Size on the page
 
-```{r sizes, echo = FALSE, fig.height = 3.0}
+```{r}
+#| label: sizes
+#| echo: false
+#| fig-height: 3.0
 tibble(size = c("8 cm wide", "17 cm wide", "30 cm wide"), width = c(8, 17, 30)) |>
   mutate(text_pt = 11 * width / 17, size = fct_inorder(size)) |>
   ggplot(aes(x = size, y = text_pt)) +
@@ -512,7 +517,8 @@ A figure made 17 cm wide with 11 pt text, then shrunk or stretched to fit: the t
 
 ## Exporting with `ggsave()`
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 fig1 <- (p_raw | p_pred) + plot_annotation(tag_levels = "A")
 ggsave("figures/figure1.pdf", fig1, width = 17, height = 8, units = "cm")
 ggsave("figures/figure1.png", fig1, width = 17, height = 8, units = "cm", dpi = 300)

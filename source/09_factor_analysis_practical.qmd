@@ -1,34 +1,12 @@
 ---
 title: "Factor analysis in practice"
 subtitle: "A multi-dimensional analysis of web registers"
-author: "Dr Massimiliano Canzi"
-knit: (function(input, ...) rmarkdown::render(input, output_dir = file.path(dirname(input), "..", "docs")))
-output:
-  revealjs::revealjs_presentation:
-    theme: black
-    css: theme-buttercup.css
-    highlight: zenburn
-    mathjax: null
-    incremental: true
-    transition: fade
-    background_transition: fade
-    self_contained: true
-    reveal_options:
-      width: 1050
-      height: 700
-      slideNumber: "c/t"
-      showSlideNumber: all
-      controls: true
-      touch: true
-      transitionSpeed: fast
-      navigationMode: linear
+footer: "Factor analysis in practice"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
-                      comment = "",
-                      fig.width = 10, fig.height = 4.4, out.width = "100%")
-
+```{r}
+#| label: setup
+#| include: false
 library(tidyverse)
 library(psych)
 library(simling)
@@ -42,7 +20,6 @@ options(width = 70, pillar.print_min = 4, pillar.print_max = 4)
 
 <style>
   :root {
-    --footer-text:  "Factor analysis in practice";
     --qr:           `r qr_css`;
     --lecture:      `r lecture_label`;
   }
@@ -102,7 +79,9 @@ web_registers
 2. Standardise each feature and compute its mean per register. Which features separate the registers?
 3. Plot the correlation matrix of the 17 features, as in lecture 8
 
-```{r task-1, include = FALSE}
+```{r}
+#| label: task-1
+#| include: false
 features <- select(web_registers, adverbs:word_length)
 register_profile <- web_registers |>
   pivot_longer(adverbs:word_length, names_to = "feature") |>
@@ -112,7 +91,10 @@ register_profile <- web_registers |>
 
 ## Checkpoint 1
 
-```{r check-1, echo = FALSE, fig.height = 4.2}
+```{r}
+#| label: check-1
+#| echo: false
+#| fig-height: 4.2
 register_profile |>
   mutate(feature = factor(feature, levels = rev(names(features)))) |>
   ggplot(aes(x = register, y = feature, fill = z)) +
@@ -138,7 +120,8 @@ _Source: Seyfarth, Cheney & Marler (1980), Science_
 
 A factor analysis needs features that share variance. Multi-dimensional analyses usually report two checks. Run both, and read every message and warning R prints: what do they tell you?
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 KMO(features)
 cortest.bartlett(cor(features), n = nrow(features))
 ```
@@ -150,7 +133,8 @@ cortest.bartlett(cor(features), n = nrow(features))
 
 A correlation matrix that cannot be inverted has an [eigenvalue]{.hl} of zero, which means that one feature is a linear combination of others. The eigenvector of that eigenvalue shows which features are involved.
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 e <- eigen(cor(features))
 min(e$values)
 round(e$vectors[, which.min(e$values)], 2)
@@ -158,13 +142,18 @@ round(e$vectors[, which.min(e$values)], 2)
 
 Which features have weights that are not zero? Look at their values in the data, and fix the problem.
 
-```{r task-3, include = FALSE}
+```{r}
+#| label: task-3
+#| include: false
 e_all <- eigen(cor(features))
 ```
 
 ## Checkpoint 2
 
-```{r check-2, echo = FALSE, fig.height = 3.4}
+```{r}
+#| label: check-2
+#| echo: false
+#| fig-height: 3.4
 tibble(feature = names(features), weight = e_all$vectors[, which.min(e_all$values)]) |>
   mutate(feature = fct_reorder(feature, abs(weight))) |>
   ggplot(aes(x = weight, y = feature, fill = abs(weight) > 0.01)) +
@@ -185,14 +174,17 @@ Redundant features are common in corpus data: totals next to their parts, propor
 
 ## Task 4: how many dimensions?
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 features <- select(web_registers, adverbs:word_length, -pronouns)
 ```
 
 1. Run `KMO()` and Bartlett's test again
 2. Run a parallel analysis, as in lecture 8, and draw the scree plot with the eigenvalues of random data
 
-```{r task-4, include = FALSE}
+```{r}
+#| label: task-4
+#| include: false
 features <- select(web_registers, adverbs:word_length, -pronouns)
 eig <- eigen(cor(features))$values
 set.seed(1)
@@ -205,7 +197,10 @@ n_dims <- which(eig < rowMeans(eig_random))[1] - 1
 
 ## Checkpoint 3
 
-```{r check-3, echo = FALSE, fig.height = 3.2}
+```{r}
+#| label: check-3
+#| echo: false
+#| fig-height: 3.2
 tibble(dimension = seq_along(eig), Observed = eig, `Random data` = rowMeans(eig_random)) |>
   pivot_longer(-dimension, names_to = "data", values_to = "eigenvalue") |>
   ggplot(aes(x = dimension, y = eigenvalue, colour = data, shape = data)) +
@@ -229,7 +224,8 @@ _Source: Wegdell, Hammerschmidt & Fischer (2019), Nature Ecology & Evolution_
 
 ## Task 5: fit and name the dimensions
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 mda <- fa(features, nfactors = ___, rotate = "promax", fm = "minres")
 print(mda$loadings, cutoff = 0.3, sort = TRUE)
 round(mda$Phi, 2)
@@ -240,7 +236,9 @@ Biber (1988) and most later multi-dimensional analyses use `promax`, an oblique 
 - For each factor, list the features with positive and with negative loadings. What do texts with high scores do? And texts with low scores? Give each dimension a name that covers both poles
 - Which features load on more than one factor, and how strongly are the factors correlated?
 
-```{r task-5, include = FALSE}
+```{r}
+#| label: task-5
+#| include: false
 mda <- fa(features, nfactors = 3, rotate = "promax", fm = "minres")
 mda_loadings <- unclass(mda$loadings) |>
   as_tibble(rownames = "feature") |>
@@ -253,7 +251,10 @@ feature_order <- mda_loadings |>
 
 ## Checkpoint 4
 
-```{r check-4, echo = FALSE, fig.height = 4.3}
+```{r}
+#| label: check-4
+#| echo: false
+#| fig-height: 4.3
 mda_loadings |>
   mutate(feature = factor(feature, levels = rev(feature_order)),
          label = if_else(abs(loading) >= 0.3, sprintf("%.2f", loading), "")) |>
@@ -288,14 +289,17 @@ _Source: Wegdell, Hammerschmidt & Fischer (2019), Nature Ecology & Evolution_
 
 `fa()` also gives each text a score on each factor (`mda$scores`).
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 scores <- bind_cols(select(web_registers, text, register), as_tibble(mda$scores))
 ```
 
 1. Compute the mean and standard deviation of the scores per register on each dimension
 2. Plot the registers on each dimension. Which register is the most involved? Which is the most narrative?
 
-```{r task-6, include = FALSE}
+```{r}
+#| label: task-6
+#| include: false
 scores <- bind_cols(select(web_registers, text, register), as_tibble(mda$scores))
 register_scores <- scores |>
   pivot_longer(starts_with("MR"), names_to = "dimension", values_to = "score") |>
@@ -304,7 +308,10 @@ register_scores <- scores |>
 
 ## Checkpoint 5
 
-```{r check-5, echo = FALSE, fig.height = 3.4}
+```{r}
+#| label: check-5
+#| echo: false
+#| fig-height: 3.4
 register_scores |>
   mutate(register = fct_rev(register)) |>
   ggplot(aes(x = mean, y = register)) +

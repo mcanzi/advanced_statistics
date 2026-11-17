@@ -1,34 +1,12 @@
 ---
 title: "Cluster analysis"
 subtitle: "Finding groups in data"
-author: "Dr Massimiliano Canzi"
-knit: (function(input, ...) rmarkdown::render(input, output_dir = file.path(dirname(input), "..", "docs")))
-output:
-  revealjs::revealjs_presentation:
-    theme: black
-    css: theme-buttercup.css
-    highlight: zenburn
-    mathjax: null
-    incremental: true
-    transition: fade
-    background_transition: fade
-    self_contained: true
-    reveal_options:
-      width: 1050
-      height: 700
-      slideNumber: "c/t"
-      showSlideNumber: all
-      controls: true
-      touch: true
-      transitionSpeed: fast
-      navigationMode: linear
+footer: "Cluster analysis"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
-                      comment = "",
-                      fig.width = 10, fig.height = 4.4, out.width = "100%")
-
+```{r}
+#| label: setup
+#| include: false
 library(mclust)
 library(tidyverse)
 library(cluster)
@@ -63,7 +41,6 @@ dendro_segments <- function(hc) {
 
 <style>
   :root {
-    --footer-text:  "Cluster analysis";
     --qr:           `r qr_css`;
     --lecture:      `r lecture_label`;
   }
@@ -106,7 +83,10 @@ ks
 
 ## A sound change in progress
 
-```{r stops-plot, echo = FALSE, fig.height = 3.0}
+```{r}
+#| label: stops-plot
+#| echo: false
+#| fig-height: 3.0
 ggplot(ks, aes(x = vot, y = f0_st, colour = stop)) +
   geom_point(alpha = 0.4, size = 1.4) +
   scale_colour_manual(values = stop_cols) +
@@ -129,7 +109,9 @@ _Source: Payne, Langbauer & Thomas (1986), Behavioral Ecology and Sociobiology_
 
 Every clustering method starts from a [distance]{.hl} between observations. With two measures, the usual [Euclidean distance]{.hl} is the length of the straight line between two points in the plot:
 
-<div class="formula">d = √((vot₁ − vot₂)² + (f0₁ − f0₂)²)</div>
+::: {.formula}
+d = √((vot₁ − vot₂)² + (f0₁ − f0₂)²)
+:::
 
 . . .
 
@@ -147,7 +129,10 @@ VOT varies by tens of milliseconds, f0 by a few semitones. In the raw units, a d
 
 ## Raw or standardised?
 
-```{r scaling, echo = FALSE, fig.height = 3.4}
+```{r}
+#| label: scaling
+#| echo: false
+#| fig-height: 3.4
 younger <- filter(ks, generation == "younger")
 set.seed(1)
 km_raw <- kmeans(younger[c("vot", "f0_st")], centers = 3, nstart = 25)
@@ -202,7 +187,10 @@ Each step lowers the [within-cluster sum of squares]{.hl}: the squared distances
 
 ## Three steps
 
-```{r kmeans-steps, echo = FALSE, fig.height = 3.4}
+```{r}
+#| label: kmeans-steps
+#| echo: false
+#| fig-height: 3.4
 older <- filter(ks, generation == "older")
 X_old <- scale(older[c("vot", "f0_st")])
 nearest <- function(X, C) max.col(-sapply(seq_len(nrow(C)), \(j) colSums((t(X) - C[j, ])^2)))
@@ -290,7 +278,10 @@ The [linkage]{.hl} method decides how close two clusters are:
 
 ## The dendrogram
 
-```{r dendrogram, echo = FALSE, fig.height = 3.5}
+```{r}
+#| label: dendrogram
+#| echo: false
+#| fig-height: 3.5
 set.seed(2)
 few <- slice_sample(older, n = 12, by = stop)
 hc_few <- hclust(dist(scale(few[c("vot", "f0_st")])), method = "ward.D2")
@@ -374,7 +365,10 @@ _Source: Pardo et al. (2024), Nature Ecology & Evolution_
 
 ## The elbow
 
-```{r elbow, echo = FALSE, fig.height = 3.3}
+```{r}
+#| label: elbow
+#| echo: false
+#| fig-height: 3.3
 wss <- map(c("older", "younger"), \(g) {
   X <- scale(filter(ks, generation == g)[c("vot", "f0_st")])
   tibble(generation = g, k = 1:8,
@@ -395,7 +389,9 @@ More clusters always lower the within-cluster sum of squares. Look for the [elbo
 
 For each observation, the [silhouette width]{.hl} compares `a`, its mean distance to the other members of its own cluster, with `b`, its mean distance to the members of the nearest other cluster (Rousseeuw, 1987):
 
-<div class="formula">s = (b − a) / max(a, b)</div>
+::: {.formula}
+s = (b − a) / max(a, b)
+:::
 
 - `s` close to 1: the observation sits well inside its cluster
 - `s` around 0: it lies between two clusters
@@ -420,7 +416,9 @@ The average silhouette width is highest at k = 3 in both generations. `silhouett
 
 ## Clusters in noise {.smaller}
 
-```{r noise, fig.height = 2.4}
+```{r}
+#| label: noise
+#| fig-height: 2.4
 set.seed(3)
 noise <- tibble(x = runif(300), y = runif(300))
 set.seed(1)
@@ -458,7 +456,10 @@ Here we know the stops, so we can check the clusters against them. In a real app
 
 ## Two generations
 
-```{r centres, echo = FALSE, fig.height = 3.2}
+```{r}
+#| label: centres
+#| echo: false
+#| fig-height: 3.2
 centres <- map(c("older", "younger"), \(g) {
   d <- filter(ks, generation == g)
   set.seed(1)

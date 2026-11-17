@@ -1,34 +1,12 @@
 ---
 title: "Statistics refresher"
 subtitle: "Linear models, interactions and mixed models"
-author: "Dr Massimiliano Canzi"
-knit: (function(input, ...) rmarkdown::render(input, output_dir = file.path(dirname(input), "..", "docs")))
-output:
-  revealjs::revealjs_presentation:
-    theme: black
-    css: theme-buttercup.css
-    highlight: zenburn
-    mathjax: null
-    incremental: true
-    transition: fade
-    background_transition: fade
-    self_contained: true
-    reveal_options:
-      width: 1050
-      height: 700
-      slideNumber: "c/t"
-      showSlideNumber: all
-      controls: true
-      touch: true
-      transitionSpeed: fast
-      navigationMode: linear
+footer: "Statistics refresher"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
-                      comment = "",
-                      fig.width = 10, fig.height = 4.4, out.width = "100%")
-
+```{r}
+#| label: setup
+#| include: false
 library(tidyverse)
 library(broom)
 library(lme4)
@@ -43,8 +21,7 @@ options(width = 70, pillar.print_min = 4, pillar.print_max = 4)
 
 <style>
   :root {
-    --footer-text:  "Statistics refresher";
-    --qr:           `r qr_css`;
+    --qr:          `r qr_css`;
     --lecture:      `r lecture_label`;
   }
 </style>
@@ -75,7 +52,8 @@ Nothing here is new. If a slide feels unfamiliar, the matching lecture of the fi
 
 `{konstats}` is the companion package of Statistics and of this course. If you took Statistics, you have it already; installing it again gets you the latest version. Type this in the `Console`, once:
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 install.packages("remotes")
 remotes::install_github("mcanzi/konstats")
 konstats::install_course("advanced")
@@ -87,7 +65,8 @@ Installing `{konstats}` brings the packages of Statistics, `{simling}` included.
 
 ## Is your computer ready? {.smaller}
 
-```{r, message = TRUE}
+```{r}
+#| message: true
 library(konstats)
 check_setup("advanced")
 ```
@@ -129,7 +108,9 @@ lex
 
 ## A first look
 
-```{r, echo = FALSE, fig.height = 4.2}
+```{r}
+#| echo: false
+#| fig-height: 4.2
 ggplot(lex, aes(x = log_freq, y = rt)) +
   geom_point(colour = muted, alpha = 0.15, size = 1.2) +
   stat_summary(aes(group = word), fun = mean, geom = "point", colour = kingfisher, size = 2.6) +
@@ -140,7 +121,10 @@ Grey: every response. Salmon: the mean RT for each word. Responses are noisy, bu
 
 ## Log reaction times
 
-```{r log-rt, echo = FALSE, fig.height = 3.2}
+```{r}
+#| label: log-rt
+#| echo: false
+#| fig-height: 3.2
 bind_rows(tibble(scale = "RT (ms)", value = lex$rt),
           tibble(scale = "log(RT)", value = log(lex$rt))) |>
   mutate(scale = fct_inorder(scale)) |>
@@ -162,7 +146,9 @@ _Source: Aubin & Jouventin (1998), Proceedings of the Royal Society B_
 
 ## The equation
 
-<div class="formula">y = b₀ + b₁ · x + e</div>
+::: {.formula}
+y = b₀ + b₁ · x + e
+:::
 
 - The [intercept]{.hl} `b₀` is the predicted `y` when `x = 0`
 - The [slope]{.hl} `b₁` is how much `y` changes when `x` increases by one unit
@@ -174,7 +160,9 @@ _Source: Aubin & Jouventin (1998), Proceedings of the Royal Society B_
 
 ## Intercept, slope and residuals
 
-```{r, echo = FALSE, fig.height = 4.3}
+```{r}
+#| echo: false
+#| fig-height: 4.3
 wm <- summarise(lex, log_rt = mean(log(rt)), .by = c(word, log_freq))
 mw <- lm(log_rt ~ log_freq, data = wm)
 ggplot(augment(mw), aes(x = log_freq, y = log_rt)) +
@@ -216,7 +204,9 @@ coef(lm(log(rt) ~ freq_c, data = lex))
 
 ## Centering, visually
 
-```{r, echo = FALSE, fig.height = 4}
+```{r}
+#| echo: false
+#| fig-height: 4
 wm2 <- mutate(wm, `Raw log frequency` = log_freq, `Centred log frequency` = log_freq - mean(lex$log_freq)) |>
   pivot_longer(c(`Raw log frequency`, `Centred log frequency`), names_to = "scale", values_to = "x") |>
   mutate(scale = fct_rev(scale))
@@ -245,7 +235,9 @@ glance(lm(log(rt) ~ freq_c, data = lex))[, c("r.squared", "sigma", "nobs")]
 
 ## Checking the residuals
 
-```{r, echo = FALSE, fig.height = 3.8}
+```{r}
+#| echo: false
+#| fig-height: 3.8
 augment(lm(log(rt) ~ freq_c, data = lex)) |>
   ggplot(aes(x = .fitted, y = .resid)) +
   geom_hline(yintercept = 0, colour = muted, linetype = "dashed") +
@@ -275,7 +267,9 @@ With [treatment coding]{.hl}, R's default, `group` becomes a 0/1 dummy. The inte
 
 ## Treatment and sum coding, visually
 
-```{r, echo = FALSE, fig.height = 4.2}
+```{r}
+#| echo: false
+#| fig-height: 4.2
 pm <- summarise(lex, rt = mean(log(rt)), .by = c(participant, group))
 gm <- summarise(pm, rt = mean(rt), .by = group)
 ggplot(pm, aes(x = group, y = rt)) +
@@ -315,7 +309,9 @@ Each slope is now the effect of one predictor [holding the other constant]{.hl}.
 
 ## Simple and multiple slopes
 
-```{r, echo = FALSE, fig.height = 4.2}
+```{r}
+#| echo: false
+#| fig-height: 4.2
 wl <- left_join(wm, distinct(lex, word, length), by = "word")
 mw2 <- lm(log_rt ~ log_freq + length, data = wl)
 ggplot(wl, aes(x = log_freq, y = log_rt)) +
@@ -331,7 +327,9 @@ Frequent words are also short (blue), so the frequency-only line (dashed) mixes 
 
 ## Correlated predictors
 
-```{r, echo = FALSE, fig.height = 3}
+```{r}
+#| echo: false
+#| fig-height: 3
 ggplot(distinct(lex, word, log_freq, length), aes(x = log_freq, y = length)) +
   geom_jitter(height = 0.15, colour = kingfisher, size = 2.6) +
   labs(x = "log10 frequency", y = "Length (letters)")
@@ -359,7 +357,9 @@ _Source: Jouventin, Aubin & Lengagne (1999), Animal Behaviour_
 
 ## Two groups, two slopes
 
-```{r, echo = FALSE, fig.height = 4.2}
+```{r}
+#| echo: false
+#| fig-height: 4.2
 lex |>
   summarise(log_rt = mean(log(rt)), .by = c(group, word, log_freq)) |>
   ggplot(aes(x = log_freq, y = log_rt, colour = group)) +
@@ -422,7 +422,9 @@ Ignoring this makes standard errors too small, so effects look more certain than
 
 ## Participants differ
 
-```{r, echo = FALSE, fig.height = 4.2}
+```{r}
+#| echo: false
+#| fig-height: 4.2
 ggplot(lex, aes(x = log_freq, y = log(rt), group = participant, colour = group)) +
   geom_smooth(method = "lm", se = FALSE, linewidth = 0.7, alpha = 0.7) +
   labs(x = "log10 frequency", y = "Fitted log RT", colour = NULL)
@@ -480,7 +482,10 @@ VarCorr(m4)
 
 ## Random effects, visually
 
-```{r caterpillar, echo = FALSE, fig.height = 3.6}
+```{r}
+#| label: caterpillar
+#| echo: false
+#| fig-height: 3.6
 as.data.frame(ranef(m4)) |>
   filter(term == "(Intercept)") |>
   mutate(grpvar = if_else(grpvar == "participant", "Participants", "Words"),
@@ -510,7 +515,10 @@ The estimate barely changes, but its standard error grows once the model knows t
 
 ## Wider intervals
 
-```{r se-plot, echo = FALSE, fig.height = 3.1}
+```{r}
+#| label: se-plot
+#| echo: false
+#| fig-height: 3.1
 se_tab <- function(m, name) {
   s <- coef(summary(m))
   tibble(term = rownames(s), est = s[, 1], se = s[, 2], model = name)
@@ -531,7 +539,9 @@ Estimate ± 1.96 SE for each fixed effect. The intervals widen most for `group1`
 
 ## Partial pooling
 
-```{r, echo = FALSE, fig.height = 3.9}
+```{r}
+#| echo: false
+#| fig-height: 3.9
 m_s <- lmer(log(rt) ~ freq_c + (1 + freq_c | participant), data = lex)
 nopool <- lex |>
   nest_by(participant) |>

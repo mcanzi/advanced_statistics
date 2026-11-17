@@ -1,34 +1,12 @@
 ---
 title: "Factor analysis"
 subtitle: "Latent variables behind many measures"
-author: "Dr Massimiliano Canzi"
-knit: (function(input, ...) rmarkdown::render(input, output_dir = file.path(dirname(input), "..", "docs")))
-output:
-  revealjs::revealjs_presentation:
-    theme: black
-    css: theme-buttercup.css
-    highlight: zenburn
-    mathjax: null
-    incremental: true
-    transition: fade
-    background_transition: fade
-    self_contained: true
-    reveal_options:
-      width: 1050
-      height: 700
-      slideNumber: "c/t"
-      showSlideNumber: all
-      controls: true
-      touch: true
-      transitionSpeed: fast
-      navigationMode: linear
+footer: "Factor analysis"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
-                      comment = "",
-                      fig.width = 10, fig.height = 4.4, out.width = "100%")
-
+```{r}
+#| label: setup
+#| include: false
 library(tidyverse)
 library(psych)
 library(lavaan)
@@ -69,7 +47,6 @@ own_loadings <- function(model) {
 
 <style>
   :root {
-    --footer-text:  "Factor analysis";
     --qr:           `r qr_css`;
     --lecture:      `r lecture_label`;
   }
@@ -118,7 +95,10 @@ The questionnaire was written for three attitudes that language attitude researc
 
 ## The answers
 
-```{r answers, echo = FALSE, fig.height = 3.9}
+```{r}
+#| label: answers
+#| echo: false
+#| fig-height: 3.9
 likert_cols <- setNames(colorRampPalette(c(kingfisher, muted, pandan))(5), 1:5)
 language_attitudes |>
   pivot_longer(intelligent:identity, names_to = "item", values_to = "answer") |>
@@ -145,7 +125,10 @@ _Source: Marler & Tamura (1964), Science_
 
 ## Correlations between items
 
-```{r correlations, echo = FALSE, fig.height = 4.3}
+```{r}
+#| label: correlations
+#| echo: false
+#| fig-height: 4.3
 r_raw <- cor(select(language_attitudes, intelligent:identity), use = "pairwise.complete.obs")
 as_tibble(r_raw, rownames = "row") |>
   pivot_longer(-row, names_to = "col", values_to = "r") |>
@@ -188,7 +171,10 @@ intelligent = λ1 × status + λ2 × solidarity + λ3 × vitality + unique part
 
 ## Loadings from PCA and from factor analysis
 
-```{r pca-fa, echo = FALSE, fig.height = 3.3}
+```{r}
+#| label: pca-fa
+#| echo: false
+#| fig-height: 3.3
 la <- language_attitudes |>
   mutate(lazy = 6 - lazy, cold = 6 - cold)
 items <- select(la, intelligent:identity)
@@ -219,7 +205,8 @@ _Source: Konishi (1965), Zeitschrift für Tierpsychologie_
 
 The [eigenvalues]{.hl} of the correlation matrix say how much of the total variance each successive dimension explains. Twelve standardised items have a total variance of 12.
 
-```{r eigen}
+```{r}
+#| label: eigen
 r_items <- cor(items, use = "pairwise.complete.obs")
 eig <- eigen(r_items)$values
 round(eig, 2)
@@ -233,7 +220,8 @@ Keeping every factor with an eigenvalue above 1 (Kaiser, 1960) is still the defa
 
 [Parallel analysis]{.hl} compares each eigenvalue with the eigenvalues of random data of the same size, in which no factors exist (Horn, 1965). Keep the factors whose eigenvalues are larger than those of random data.
 
-```{r parallel}
+```{r}
+#| label: parallel
 set.seed(1)
 eig_random <- replicate(100, {
   noise <- matrix(rnorm(nrow(items) * ncol(items)), ncol = ncol(items))
@@ -247,7 +235,10 @@ n_factors
 
 ## Scree plot
 
-```{r scree, echo = FALSE, fig.height = 2.8}
+```{r}
+#| label: scree
+#| echo: false
+#| fig-height: 2.8
 tibble(dimension = seq_along(eig), Observed = eig, `Random data` = rowMeans(eig_random)) |>
   pivot_longer(-dimension, names_to = "data", values_to = "eigenvalue") |>
   ggplot(aes(x = dimension, y = eigenvalue, colour = data, shape = data)) +
@@ -272,7 +263,8 @@ _Source: Rattenborg et al. (2004), PLoS Biology_
 
 ## Before fitting
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 la <- language_attitudes |>
   mutate(lazy = 6 - lazy, cold = 6 - cold)
 items <- select(la, intelligent:identity)
@@ -285,7 +277,10 @@ items <- select(la, intelligent:identity)
 
 A [polychoric correlation]{.hl} estimates the correlation between the continuous attitudes behind two ordered items, as if each answer cut a normal distribution into five ranges.
 
-```{r poly-plot, echo = FALSE, fig.height = 2.3}
+```{r}
+#| label: poly-plot
+#| echo: false
+#| fig-height: 2.3
 r_poly <- polychoric(items)$rho
 tibble(pearson = r_items[lower.tri(r_items)], polychoric = r_poly[lower.tri(r_poly)]) |>
   ggplot(aes(x = pearson, y = polychoric)) +
@@ -298,11 +293,14 @@ Each point is a pair of items. Pearson correlations between categories are small
 
 ## Fitting the model {.smaller}
 
-```{r fit}
+```{r}
+#| label: fit
 efa <- fa(items, nfactors = 3, rotate = "oblimin", fm = "minres", cor = "poly")
 ```
 
-```{r fit-table, echo = FALSE}
+```{r}
+#| label: fit-table
+#| echo: false
 unclass(efa$loadings) |>
   as_tibble(rownames = "item") |>
   mutate(across(-item, \(x) if_else(abs(x) < 0.3, "", sprintf("%.2f", x)))) |>
@@ -327,7 +325,9 @@ The loadings of an unrotated solution are hard to read: the first factor takes a
 
 `efa$Phi` holds the correlations between the factors. Here they are named after their items:
 
-```{r phi, echo = FALSE}
+```{r}
+#| label: phi
+#| echo: false
 attitude_of <- deframe(distinct(own_loadings(efa), factor, attitude))
 phi <- efa$Phi
 dimnames(phi) <- list(attitude_of[colnames(efa$loadings)], attitude_of[colnames(efa$loadings)])
@@ -338,7 +338,10 @@ The simulation correlates status with solidarity at 0.2, status with vitality at
 
 ## Checking against the true model
 
-```{r check-true, echo = FALSE, fig.height = 3.2}
+```{r}
+#| label: check-true
+#| echo: false
+#| fig-height: 3.2
 efa_pearson <- fa(items, nfactors = 3, rotate = "oblimin", fm = "minres")
 bind_rows(Polychoric = own_loadings(efa), Pearson = own_loadings(efa_pearson), .id = "correlations") |>
   mutate(item = fct_reorder(item, true)) |>
@@ -366,7 +369,8 @@ _Source: Derryberry et al. (2020), Science_
 
 Before items are combined into a score, the score needs to be reliable. [Cronbach's alpha]{.hl} assumes that all items of a scale load equally on their factor. [Omega]{.hl} uses the loadings of a one-factor model, so it does without that assumption (McNeish, 2018).
 
-```{r reliability}
+```{r}
+#| label: reliability
 scales <- list(status = c("intelligent", "educated", "competent", "lazy"),
                solidarity = c("friendly", "warm", "trustworthy", "cold"),
                vitality = c("used_by_young", "will_survive", "teach_school", "identity"))
@@ -378,7 +382,8 @@ omega_total <- function(x) {
 
 ## Reliability of the three scales
 
-```{r reliability-table}
+```{r}
+#| label: reliability-table
 imap(scales, \(cols, name) tibble(scale = name,
                                   alpha = psych::alpha(la[cols])$total$raw_alpha,
                                   omega = omega_total(la[cols]))) |>
@@ -392,7 +397,8 @@ When the loadings of a scale differ, alpha underestimates its reliability.
 
 Most studies average the items of each scale, which gives every item the same weight. [Factor scores]{.hl} weight each item by its loading (`fa(..., scores = "regression")`), but different methods give different scores for the same model, so they are less transparent.
 
-```{r scores}
+```{r}
+#| label: scores
 la_scores <- la |>
   mutate(status = rowMeans(pick(all_of(scales$status)), na.rm = TRUE),
          solidarity = rowMeans(pick(all_of(scales$solidarity)), na.rm = TRUE),
@@ -401,7 +407,8 @@ la_scores <- la |>
 
 ## Using the scores {.smaller}
 
-```{r scores-lm}
+```{r}
+#| label: scores-lm
 std <- la_scores |>
   mutate(across(c(status, solidarity, vitality), \(x) as.numeric(scale(x))),
          age_10 = (age - 45) / 10)
@@ -418,7 +425,10 @@ Each scale is standardised, so the coefficients are in standard deviations; `age
 
 ## Who rates the dialect higher?
 
-```{r effects-plot, echo = FALSE, fig.height = 3.0}
+```{r}
+#| label: effects-plot
+#| echo: false
+#| fig-height: 3.0
 true_effects <- tribble(
   ~scale, ~term, ~estimate,
   "status", "dialect_speakeryes", 0,
@@ -451,7 +461,8 @@ A model suggested by the data will fit those data well, so test it on new data. 
 
 ## Two halves
 
-```{r split}
+```{r}
+#| label: split
 set.seed(8)
 la_half <- la |>
   mutate(half = sample(rep(1:2, length.out = n())))
@@ -463,7 +474,8 @@ Check that the loadings of `efa_half` show the same three groups of items before
 
 ## A confirmatory model in lavaan {.smaller}
 
-```{r cfa}
+```{r}
+#| label: cfa
 cfa_model <- "
   status =~ intelligent + educated + competent + lazy
   solidarity =~ friendly + warm + trustworthy + cold
@@ -486,7 +498,10 @@ Because a CFA fixes most loadings at zero, we can ask how well it reproduces the
 
 ## Confirmatory estimates
 
-```{r cfa-estimates, echo = FALSE, fig.height = 3.0}
+```{r}
+#| label: cfa-estimates
+#| echo: false
+#| fig-height: 3.0
 standardizedSolution(cfa_fit) |>
   filter(op == "=~") |>
   select(attitude = lhs, item = rhs, est.std, ci.lower, ci.upper) |>

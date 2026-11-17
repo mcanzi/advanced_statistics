@@ -1,34 +1,12 @@
 ---
 title: "Cluster analysis in practice"
 subtitle: "Grouping web texts by their dimension scores"
-author: "Dr Massimiliano Canzi"
-knit: (function(input, ...) rmarkdown::render(input, output_dir = file.path(dirname(input), "..", "docs")))
-output:
-  revealjs::revealjs_presentation:
-    theme: black
-    css: theme-buttercup.css
-    highlight: zenburn
-    mathjax: null
-    incremental: true
-    transition: fade
-    background_transition: fade
-    self_contained: true
-    reveal_options:
-      width: 1050
-      height: 700
-      slideNumber: "c/t"
-      showSlideNumber: all
-      controls: true
-      touch: true
-      transitionSpeed: fast
-      navigationMode: linear
+footer: "Cluster analysis in practice"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
-                      comment = "",
-                      fig.width = 10, fig.height = 4.4, out.width = "100%")
-
+```{r}
+#| label: setup
+#| include: false
 library(mclust)
 library(tidyverse)
 library(psych)
@@ -46,7 +24,6 @@ cluster_cols <- c(hornbill, pandan, kingfisher, orchid, mist, moss)
 
 <style>
   :root {
-    --footer-text:  "Cluster analysis in practice";
     --qr:           `r qr_css`;
     --lecture:      `r lecture_label`;
   }
@@ -97,7 +74,10 @@ scores
 
 ## Checkpoint 1
 
-```{r check-1, echo = FALSE, fig.height = 3.2}
+```{r}
+#| label: check-1
+#| echo: false
+#| fig-height: 3.2
 ggplot(scores, aes(x = MR1, y = MR3, colour = register)) +
   geom_point(alpha = 0.7, size = 1.6) +
   scale_colour_manual(values = cluster_cols) +
@@ -120,7 +100,8 @@ _Source: Ballerini et al. (2008), PNAS_
 
 Why not cluster the texts on the 16 features directly?
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 set.seed(1)
 km_raw <- kmeans(features, centers = ___, nstart = 25)
 ```
@@ -129,7 +110,9 @@ km_raw <- kmeans(features, centers = ___, nstart = 25)
 - Compute the mean of each feature per cluster. Which features differ most between the clusters?
 - Compare these features with the standard deviations of all features. What has happened?
 
-```{r task-2, include = FALSE}
+```{r}
+#| label: task-2
+#| include: false
 set.seed(1)
 km_raw <- kmeans(features, centers = 4, nstart = 25)
 feature_sd <- enframe(map_dbl(features, sd), name = "feature", value = "sd")
@@ -137,7 +120,10 @@ feature_sd <- enframe(map_dbl(features, sd), name = "feature", value = "sd")
 
 ## Checkpoint 2
 
-```{r check-2, echo = FALSE, fig.height = 3.4}
+```{r}
+#| label: check-2
+#| echo: false
+#| fig-height: 3.4
 feature_sd |>
   mutate(feature = fct_reorder(feature, sd)) |>
   ggplot(aes(x = sd, y = feature)) +
@@ -168,7 +154,9 @@ S <- as.matrix(select(scores, starts_with("MR")))
 2. Compute the average silhouette width for k from 2 to 8, with `silhouette()` from `{cluster}`, as in lecture 10
 3. Which k would you choose? How strong is the structure?
 
-```{r task-3, include = FALSE}
+```{r}
+#| label: task-3
+#| include: false
 k_choice <- tibble(k = 1:8) |>
   mutate(wss = map_dbl(k, \(k) { set.seed(1); kmeans(S, k, nstart = 25)$tot.withinss }),
          sil = map_dbl(k, \(k) {
@@ -181,7 +169,10 @@ k_choice <- tibble(k = 1:8) |>
 
 ## Checkpoint 3
 
-```{r check-3, echo = FALSE, fig.height = 3.0}
+```{r}
+#| label: check-3
+#| echo: false
+#| fig-height: 3.0
 k_choice |>
   pivot_longer(c(wss, sil), names_to = "measure", values_to = "value") |>
   filter(!is.na(value)) |>
@@ -212,7 +203,9 @@ With no clear best k, the choice is yours. Take k = 3 for now.
 2. Cross-tabulate the clusters with the registers. Which registers share a cluster, and which register is split?
 3. Fit a Ward hierarchical clustering on the same scores, cut it into three clusters, and compare it with k-means
 
-```{r task-4, include = FALSE}
+```{r}
+#| label: task-4
+#| include: false
 set.seed(1)
 km3 <- kmeans(S, centers = 3, nstart = 25)
 scores <- mutate(scores, cluster = factor(km3$cluster))
@@ -222,7 +215,10 @@ ward3 <- cutree(hc, k = 3)
 
 ## Checkpoint 4
 
-```{r check-4, echo = FALSE, fig.height = 3.4}
+```{r}
+#| label: check-4
+#| echo: false
+#| fig-height: 3.4
 count(scores, register, cluster) |>
   complete(register, cluster, fill = list(n = 0)) |>
   mutate(share = n / sum(n), .by = register) |>
@@ -244,7 +240,9 @@ Describe a cluster by what its members share. The register most of them come fro
 2. Name each cluster from its profile, with the dimension names from Task 1
 3. Would these names fit the registers that make up each cluster?
 
-```{r task-5, include = FALSE}
+```{r}
+#| label: task-5
+#| include: false
 profiles <- scores |>
   pivot_longer(starts_with("MR"), names_to = "dimension", values_to = "score") |>
   summarise(mean = mean(score), .by = c(cluster, dimension))
@@ -252,7 +250,10 @@ profiles <- scores |>
 
 ## Checkpoint 5
 
-```{r check-5, echo = FALSE, fig.height = 3.2}
+```{r}
+#| label: check-5
+#| echo: false
+#| fig-height: 3.2
 ggplot(profiles, aes(x = dimension, y = mean, colour = cluster, group = cluster)) +
   geom_hline(yintercept = 0, colour = muted, linetype = "dashed") +
   geom_line(linewidth = 1.2) +
@@ -276,7 +277,8 @@ _Source: Gentner et al. (2006), Nature_
 
 Clusters that come back in new data are more convincing. Split the texts at random into two halves, and cluster each half separately.
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 set.seed(3)
 half <- sample(rep(1:2, length.out = nrow(S)))
 nearest <- function(X, centres) apply(X, 1, \(x) which.min(colSums((t(centres) - x)^2)))
@@ -286,7 +288,9 @@ nearest <- function(X, centres) apply(X, 1, \(x) which.min(colSums((t(centres) -
 2. Assign all 480 texts to the nearest centre of each solution with `nearest()`, and compare the two assignments with the adjusted Rand index from lecture 10, `mclust::adjustedRandIndex()`
 3. Repeat with k = 6. Which solution is more stable?
 
-```{r task-6, include = FALSE}
+```{r}
+#| label: task-6
+#| include: false
 nearest <- function(X, centres) apply(X, 1, \(x) which.min(colSums((t(centres) - x)^2)))
 agreement <- function(k) {
   set.seed(3)
@@ -302,7 +306,10 @@ stability <- tibble(k = 2:8, ari = map_dbl(k, agreement))
 
 ## Checkpoint 6
 
-```{r check-6, echo = FALSE, fig.height = 2.9}
+```{r}
+#| label: check-6
+#| echo: false
+#| fig-height: 2.9
 ggplot(stability, aes(x = k, y = ari)) +
   geom_line(colour = muted) +
   geom_point(colour = kingfisher, size = 3) +

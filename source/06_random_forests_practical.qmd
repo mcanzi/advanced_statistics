@@ -1,34 +1,12 @@
 ---
 title: "Random forests in practice"
 subtitle: "A guided analysis of accent features"
-author: "Dr Massimiliano Canzi"
-knit: (function(input, ...) rmarkdown::render(input, output_dir = file.path(dirname(input), "..", "docs")))
-output:
-  revealjs::revealjs_presentation:
-    theme: black
-    css: theme-buttercup.css
-    highlight: zenburn
-    mathjax: null
-    incremental: true
-    transition: fade
-    background_transition: fade
-    self_contained: true
-    reveal_options:
-      width: 1050
-      height: 700
-      slideNumber: "c/t"
-      showSlideNumber: all
-      controls: true
-      touch: true
-      transitionSpeed: fast
-      navigationMode: linear
+footer: "Random forests in practice"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
-                      comment = "",
-                      fig.width = 10, fig.height = 4.4, out.width = "100%")
-
+```{r}
+#| label: setup
+#| include: false
 library(tidyverse)
 library(ranger)
 library(simling)
@@ -42,7 +20,6 @@ options(width = 70, pillar.print_min = 4, pillar.print_max = 4)
 
 <style>
   :root {
-    --footer-text:  "Random forests in practice";
     --qr:           `r qr_css`;
     --lecture:      `r lecture_label`;
   }
@@ -91,7 +68,9 @@ accent
 2. Compute speaker means for each measure, and plot them by L1. Which measures separate the groups?
 3. What accuracy would you get by always guessing the same L1? This is your baseline
 
-```{r task-1, include = FALSE}
+```{r}
+#| label: task-1
+#| include: false
 speaker_means <- accent |>
   summarise(across(vot:intensity, mean), .by = c(speaker, l1)) |>
   pivot_longer(vot:intensity, names_to = "measure")
@@ -99,7 +78,10 @@ speaker_means <- accent |>
 
 ## Checkpoint 1
 
-```{r check-1, echo = FALSE, fig.height = 3.4}
+```{r}
+#| label: check-1
+#| echo: false
+#| fig-height: 3.4
 ggplot(speaker_means, aes(x = l1, y = value, colour = l1)) +
   geom_jitter(width = 0.12, height = 0, size = 2.5, show.legend = FALSE) +
   facet_wrap(~ measure, scales = "free_y", nrow = 1) +
@@ -120,7 +102,8 @@ _Source: Bossema (1979), Behaviour_
 
 ## Task 2: fit a forest
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 f_all <- l1 ~ vot + vowel_ratio + rate + f0 + h1h2 + intensity
 rf_all <- ranger(f_all, data = accent, num.trees = 1000, importance = ___, seed = 1)
 rf_all
@@ -131,14 +114,19 @@ rf_all
 - The last line is the OOB accuracy. How does it compare with the baseline?
 - Plot the variable importance. Which predictors does the forest use most?
 
-```{r task-2, include = FALSE}
+```{r}
+#| label: task-2
+#| include: false
 f_all <- l1 ~ vot + vowel_ratio + rate + f0 + h1h2 + intensity
 rf_all <- ranger(f_all, data = accent, num.trees = 1000, importance = "permutation", seed = 1)
 ```
 
 ## Checkpoint 2
 
-```{r check-2, echo = FALSE, fig.height = 2.7}
+```{r}
+#| label: check-2
+#| echo: false
+#| fig-height: 2.7
 enframe(rf_all$variable.importance) |>
   mutate(name = fct_reorder(name, value)) |>
   ggplot(aes(x = value, y = name)) +
@@ -161,7 +149,10 @@ The OOB error assumes independent observations. With grouped data, it rewards pr
 
 ## Speaker fingerprints
 
-```{r fingerprints, echo = FALSE, fig.height = 3.3}
+```{r}
+#| label: fingerprints
+#| echo: false
+#| fig-height: 3.3
 accent |>
   mutate(speaker = fct_reorder(speaker, f0)) |>
   ggplot(aes(x = speaker, y = f0, colour = l1)) +
@@ -176,7 +167,8 @@ Each column holds one speaker's 40 tokens. They cluster tightly, while English a
 
 ## Task 4: cross-validation by speaker
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 set.seed(2)
 folds <- distinct(accent, speaker, l1) |>
   mutate(fold = sample(rep(1:5, length.out = n())), .by = l1)
@@ -192,7 +184,9 @@ cv_speakers <- function(formula) {
 
 Complete the test set, run `cv_speakers(f_all)`, and compute the accuracy on held-out speakers. Each fold leaves out three speakers from each group.
 
-```{r task-4, include = FALSE}
+```{r}
+#| label: task-4
+#| include: false
 set.seed(2)
 folds <- distinct(accent, speaker, l1) |>
   mutate(fold = sample(rep(1:5, length.out = n())), .by = l1)
@@ -219,7 +213,10 @@ Refit with only the three measures that differed between the groups in Task 1: `
 
 ## Checkpoint 3
 
-```{r check-3, echo = FALSE, fig.height = 3.0}
+```{r}
+#| label: check-3
+#| echo: false
+#| fig-height: 3.0
 tibble(forest = rep(c("All six measures", "VOT, vowel ratio, rate"), each = 2),
        estimate = rep(c("OOB", "New speakers (CV)"), 2),
        accuracy = c(1 - rf_all$prediction.error, mean(cv_all$pred == cv_all$l1),
@@ -252,7 +249,9 @@ The research question asks about speakers, so the last step goes from tokens to 
 - For each held-out speaker, take the L1 that most of their 40 tokens were assigned to
 - How many of the 30 speakers are classified correctly? How does this compare with the token accuracy?
 
-```{r task-6, include = FALSE}
+```{r}
+#| label: task-6
+#| include: false
 speaker_votes <- cv_l1 |>
   summarise(italian = mean(pred == "Italian"), .by = c(speaker, l1)) |>
   mutate(pred = if_else(italian > 0.5, "Italian", "English"))
@@ -262,7 +261,8 @@ speaker_votes <- cv_l1 |>
 
 Fit a probability forest with the three measures on all data, and draw a partial dependence plot for VOT, as in lecture 5.
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 rf_prob <- ranger(f_l1, data = accent, num.trees = 500, probability = ___, seed = 1)
 ```
 
@@ -271,7 +271,10 @@ rf_prob <- ranger(f_l1, data = accent, num.trees = 500, probability = ___, seed 
 
 ## Checkpoint 4
 
-```{r check-4, echo = FALSE, fig.height = 2.8}
+```{r}
+#| label: check-4
+#| echo: false
+#| fig-height: 2.8
 rf_prob <- ranger(f_l1, data = accent, num.trees = 500, probability = TRUE, seed = 1)
 partial <- function(model, data, var, values) {
   map(values, \(v) {

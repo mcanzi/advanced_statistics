@@ -1,34 +1,12 @@
 ---
 title: "Generalised additive mixed models"
 subtitle: "Random smooths, autocorrelation and non-linear interactions"
-author: "Dr Massimiliano Canzi"
-knit: (function(input, ...) rmarkdown::render(input, output_dir = file.path(dirname(input), "..", "docs")))
-output:
-  revealjs::revealjs_presentation:
-    theme: black
-    css: theme-buttercup.css
-    highlight: zenburn
-    mathjax: null
-    incremental: true
-    transition: fade
-    background_transition: fade
-    self_contained: true
-    reveal_options:
-      width: 1050
-      height: 700
-      slideNumber: "c/t"
-      showSlideNumber: all
-      controls: true
-      touch: true
-      transitionSpeed: fast
-      navigationMode: linear
+footer: "Generalised additive mixed models"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
-                      comment = "",
-                      fig.width = 10, fig.height = 4.4, out.width = "100%")
-
+```{r}
+#| label: setup
+#| include: false
 library(tidyverse)
 library(patchwork)
 library(mgcv)
@@ -44,7 +22,6 @@ options(width = 70, pillar.print_min = 4, pillar.print_max = 4)
 
 <style>
   :root {
-    --footer-text:  "Generalised additive mixed models";
     --qr:           `r qr_css`;
     --lecture:      `r lecture_label`;
   }
@@ -80,7 +57,10 @@ contrasts(price$l1_o) <- "contr.treatment"
 
 ## Speakers and tokens
 
-```{r two-levels, echo = FALSE, fig.height = 3.3}
+```{r}
+#| label: two-levels
+#| echo: false
+#| fig-height: 3.3
 price |>
   filter(speaker %in% c("S01", "S02", "S11", "S12")) |>
   mutate(panel = paste(speaker, l1, sep = ", ")) |>
@@ -138,7 +118,8 @@ The [autocorrelation]{.hl} at lag 1 is the correlation between each residual and
 
 ## Residual autocorrelation
 
-```{r, fig.height = 2.3}
+```{r}
+#| fig-height: 2.3
 ggplot(acf_gam, aes(x = lag, y = acf)) +
   geom_hline(yintercept = 0, colour = muted) +
   geom_segment(aes(xend = lag, yend = 0), colour = kingfisher, linewidth = 1.2) +
@@ -184,7 +165,10 @@ m_smooth <- bam(f2 ~ l1_o + s(time, k = 10) + s(time, by = l1_o, k = 10) +
 
 ## What each one allows
 
-```{r speaker-fits, echo = FALSE, fig.height = 3.6}
+```{r}
+#| label: speaker-fits
+#| echo: false
+#| fig-height: 3.6
 speaker_grid <- distinct(price, speaker, l1, l1_o) |>
   crossing(time = seq(0, 100, by = 2))
 list(`Random intercepts` = m_int, `+ random slopes` = m_slope, `Random smooths` = m_smooth) |>
@@ -248,7 +232,10 @@ m_ar <- bam(f2 ~ l1_o + s(time, k = 10) + s(time, by = l1_o, k = 10) +
 
 ## Did it work?
 
-```{r acf-compare, echo = FALSE, fig.height = 3.3}
+```{r}
+#| label: acf-compare
+#| echo: false
+#| fig-height: 3.3
 list(`GAM, no random effects` = residuals(m_gam),
      `Random smooths by speaker` = residuals(m_noar),
      `+ AR1` = m_ar$std.rsd) |>
@@ -282,7 +269,8 @@ _Source: Prat, Azoulay, Dor & Yovel (2017), PLoS Biology_
 
 ## Duration and shape {.smaller}
 
-```{r, fig.height = 2.7}
+```{r}
+#| fig-height: 2.7
 ggplot(price, aes(x = time, y = f2, group = traj, colour = duration)) +
   geom_line(alpha = 0.6) +
   scale_colour_viridis_c(option = "magma", begin = 0.2) +
@@ -311,7 +299,8 @@ round(summary(m_dur)$s.table, 2)
 
 ## Predictions at three durations {.smaller}
 
-```{r, fig.height = 2.7}
+```{r}
+#| fig-height: 2.7
 predict_gam(m_dur, series = "time", length_out = 50,
             values = list(duration = c(150, 220, 290)),
             exclude_terms = "s(time,speaker)") |>
@@ -327,7 +316,8 @@ predict_gam(m_dur, series = "time", length_out = 50,
 
 ## The surface {.smaller}
 
-```{r, fig.height = 2.6}
+```{r}
+#| fig-height: 2.6
 predict_gam(m_dur, series = c("time", "duration"), length_out = 40,
             values = list(l1_o = "English"), exclude_terms = "s(time,speaker)") |>
   ggplot(aes(x = time, y = duration, fill = f2, z = f2)) +
@@ -354,7 +344,8 @@ _Source: Prat, Azoulay, Dor & Yovel (2017), PLoS Biology_
 k.check(m_dur)
 ```
 
-```{r, fig.height = 2.1}
+```{r}
+#| fig-height: 2.1
 p_resid <- ggplot(tibble(fitted = fitted(m_dur), res = m_dur$std.rsd), aes(fitted, res)) +
   geom_point(colour = kingfisher, alpha = 0.2) + labs(x = "Fitted F2 (Hz)", y = "Std. residual")
 p_qq <- ggplot(tibble(res = m_dur$std.rsd), aes(sample = res)) +
@@ -375,7 +366,8 @@ Both models have the same random effects, error model and `rho`, and are fitted 
 
 ## GAM versus GAMM {.smaller}
 
-```{r, fig.height = 2.0}
+```{r}
+#| fig-height: 2.0
 compare <- list(l1_o = c("Italian", "English"))
 bind_rows(`GAM (lecture 2)` = as_tibble(get_difference(m_gam, "time", compare, length_out = 50)),
           `GAMM with AR1` = as_tibble(get_difference(m_dur, "time", compare, length_out = 50,

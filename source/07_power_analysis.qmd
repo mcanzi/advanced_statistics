@@ -1,34 +1,12 @@
 ---
 title: "Power analysis"
 subtitle: "Planning sample sizes by simulation"
-author: "Dr Massimiliano Canzi"
-knit: (function(input, ...) rmarkdown::render(input, output_dir = file.path(dirname(input), "..", "docs")))
-output:
-  revealjs::revealjs_presentation:
-    theme: black
-    css: theme-buttercup.css
-    highlight: zenburn
-    mathjax: null
-    incremental: true
-    transition: fade
-    background_transition: fade
-    self_contained: true
-    reveal_options:
-      width: 1050
-      height: 700
-      slideNumber: "c/t"
-      showSlideNumber: all
-      controls: true
-      touch: true
-      transitionSpeed: fast
-      navigationMode: linear
+footer: "Power analysis"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
-                      comment = "",
-                      fig.width = 10, fig.height = 4.4, out.width = "100%")
-
+```{r}
+#| label: setup
+#| include: false
 library(tidyverse)
 library(simr)
 library(simling)
@@ -43,7 +21,6 @@ options(width = 70, pillar.print_min = 4, pillar.print_max = 4)
 
 <style>
   :root {
-    --footer-text:  "Power analysis";
     --qr:           `r qr_css`;
     --lecture:      `r lecture_label`;
   }
@@ -102,7 +79,10 @@ Only the sample sizes are under our control once the design and the effect of in
 
 ## Low power distorts estimates
 
-```{r filter, echo = FALSE, fig.height = 2.9}
+```{r}
+#| label: filter
+#| echo: false
+#| fig-height: 2.9
 set.seed(2034)
 filter_sims <- map(1:2000, \(i) {
   a <- rnorm(20, 0.3)
@@ -168,7 +148,10 @@ The simulation agrees with the formula, up to simulation error.
 
 ## A power curve
 
-```{r curve-t, echo = FALSE, fig.height = 3.1}
+```{r}
+#| label: curve-t
+#| echo: false
+#| fig-height: 3.1
 set.seed(2)
 tibble(n = seq(10, 100, by = 10)) |>
   mutate(Simulation = map_dbl(n, \(k) mean(replicate(1000, sim_p(k, 0.5)) < 0.05)),
@@ -239,7 +222,9 @@ Retrospective "observed power", with the effect size taken from the data, gives 
 
 ## Power for the pilot design {.smaller}
 
-```{r ps30, cache = TRUE}
+```{r}
+#| label: ps30
+#| cache: true
 ps30 <- powerSim(m_pilot, test = fixed("freq_c:group", "z"), nsim = 200, seed = 1)
 ps30
 ```
@@ -250,7 +235,9 @@ ps30
 
 ## More participants or more pictures? {.smaller}
 
-```{r curves, cache = TRUE}
+```{r}
+#| label: curves
+#| cache: true
 m_part <- extend(m_pilot, along = "participant", n = 80)
 pc_part <- powerCurve(m_part, test = fixed("freq_c:group", "z"), along = "participant",
                       breaks = c(10, 20, 30, 40, 60, 80), nsim = 100, seed = 1)
@@ -263,7 +250,10 @@ pc_pic <- powerCurve(m_pic, test = fixed("freq_c:group", "z"), along = "picture"
 
 ## Two power curves
 
-```{r curves-plot, echo = FALSE, fig.height = 3.0}
+```{r}
+#| label: curves-plot
+#| echo: false
+#| fig-height: 3.0
 pc_tab <- function(pc) {
   s <- summary(pc)
   tibble(n = s$nlevels, power = s$mean, lower = s$lower, upper = s$upper)
@@ -330,7 +320,10 @@ The two studies look almost identical, and so does their post hoc power. Their t
 
 ## It only restates the p-value
 
-```{r posthoc, echo = FALSE, fig.height = 2.9}
+```{r}
+#| label: posthoc
+#| echo: false
+#| fig-height: 2.9
 set.seed(2036)
 true_power <- power.t.test(n = 25, delta = 0.4)$power
 obs_power <- map(1:1000, \(i) {

@@ -1,34 +1,12 @@
 ---
 title: "GAMMs in practice"
 subtitle: "A guided analysis of pupil curves"
-author: "Dr Massimiliano Canzi"
-knit: (function(input, ...) rmarkdown::render(input, output_dir = file.path(dirname(input), "..", "docs")))
-output:
-  revealjs::revealjs_presentation:
-    theme: black
-    css: theme-buttercup.css
-    highlight: zenburn
-    mathjax: null
-    incremental: true
-    transition: fade
-    background_transition: fade
-    self_contained: true
-    reveal_options:
-      width: 1050
-      height: 700
-      slideNumber: "c/t"
-      showSlideNumber: all
-      controls: true
-      touch: true
-      transitionSpeed: fast
-      navigationMode: linear
+footer: "GAMMs in practice"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
-                      comment = "",
-                      fig.width = 10, fig.height = 4.4, out.width = "100%")
-
+```{r}
+#| label: setup
+#| include: false
 library(tidyverse)
 library(patchwork)
 library(mgcv)
@@ -44,7 +22,6 @@ options(width = 70, pillar.print_min = 4, pillar.print_max = 4)
 
 <style>
   :root {
-    --footer-text:  "GAMMs in practice";
     --qr:           `r qr_css`;
     --lecture:      `r lecture_label`;
   }
@@ -88,7 +65,10 @@ pdata
 
 ## Single trials
 
-```{r trials, echo = FALSE, fig.height = 3.3}
+```{r}
+#| label: trials
+#| echo: false
+#| fig-height: 3.3
 pdata |>
   filter(participant == "P01", trial <= 4) |>
   ggplot(aes(x = time, y = pupil, group = trial_id, colour = condition)) +
@@ -112,7 +92,10 @@ Before fitting anything, write down what you expect the model to find.
 
 ## Checkpoint 1
 
-```{r check-1, echo = FALSE, fig.height = 3.4}
+```{r}
+#| label: check-1
+#| echo: false
+#| fig-height: 3.4
 pdata |>
   summarise(pupil = mean(pupil), .by = c(participant, condition, time)) |>
   ggplot(aes(x = time, y = pupil, group = participant)) +
@@ -133,7 +116,8 @@ _Source: Banks et al. (2015), Science Advances_
 
 ## Task 2: a first GAM
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 pdata$condition_o <- as.ordered(pdata$condition)
 contrasts(pdata$condition_o) <- "contr.treatment"
 m_gam <- bam(pupil ~ ___ + s(time, k = 20) + s(time, by = ___, k = 20),
@@ -145,7 +129,9 @@ summary(m_gam)
 - What does each smooth in the summary describe?
 - Is `k = 20` enough? Check with `k.check()`
 
-```{r task-2, include = FALSE}
+```{r}
+#| label: task-2
+#| include: false
 pdata$condition_o <- as.ordered(pdata$condition)
 contrasts(pdata$condition_o) <- "contr.treatment"
 m_gam <- bam(pupil ~ condition_o + s(time, k = 20) + s(time, by = condition_o, k = 20),
@@ -171,7 +157,8 @@ The same function as in lecture 3, also in `{konstats}` as `konstats::resid_acf(
 
 Every participant heard both conditions, so the comparison is [within]{.hl} participants. Participants can differ in their curves and also in how noise changes their curves.
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 pdata$part_cond <- interaction(pdata$participant, pdata$condition)
 m_rs <- bam(pupil ~ condition_o + s(time, k = 20) + s(time, by = condition_o, k = 20) +
               s(time, ___, bs = "fs", m = 1, k = 5),
@@ -181,7 +168,9 @@ m_rs <- bam(pupil ~ condition_o + s(time, k = 20) + s(time, by = condition_o, k 
 - Why `part_cond` and not `participant`? Look back at "The random slope equivalent" in lecture 3
 - How many levels does `part_cond` have, and how many coefficients do the random smooths add?
 
-```{r task-4, include = FALSE}
+```{r}
+#| label: task-4
+#| include: false
 pdata$part_cond <- interaction(pdata$participant, pdata$condition)
 m_rs <- bam(pupil ~ condition_o + s(time, k = 20) + s(time, by = condition_o, k = 20) +
               s(time, part_cond, bs = "fs", m = 1, k = 5),
@@ -190,7 +179,8 @@ m_rs <- bam(pupil ~ condition_o + s(time, k = 20) + s(time, by = condition_o, k 
 
 ## Task 5: an AR1 error model
 
-```{r, eval = FALSE}
+```{r}
+#| eval: false
 rho <- itsadug::start_value_rho(m_rs)
 m_ar <- bam(pupil ~ condition_o + s(time, k = 20) + s(time, by = condition_o, k = 20) +
               s(time, part_cond, bs = "fs", m = 1, k = 5),
@@ -200,7 +190,9 @@ m_ar <- bam(pupil ~ condition_o + s(time, k = 20) + s(time, by = condition_o, k 
 1. Mark the first bin of every trajectory in `AR.start`. Is the data frame sorted the way the AR1 model needs?
 2. Compare the autocorrelation of `residuals(m_gam)`, `residuals(m_rs)` and `m_ar$std.rsd`
 
-```{r task-5, include = FALSE}
+```{r}
+#| label: task-5
+#| include: false
 rho <- itsadug::start_value_rho(m_rs)
 m_ar <- bam(pupil ~ condition_o + s(time, k = 20) + s(time, by = condition_o, k = 20) +
               s(time, part_cond, bs = "fs", m = 1, k = 5),
@@ -209,7 +201,10 @@ m_ar <- bam(pupil ~ condition_o + s(time, k = 20) + s(time, by = condition_o, k 
 
 ## Checkpoint 2
 
-```{r check-2, echo = FALSE, fig.height = 3.3}
+```{r}
+#| label: check-2
+#| echo: false
+#| fig-height: 3.3
 list(`GAM` = residuals(m_gam),
      `+ random smooths` = residuals(m_rs),
      `+ AR1` = m_ar$std.rsd) |>
@@ -248,7 +243,9 @@ Fit a null model without any term for condition, and compare it with `m_ar` usin
 
 Before you run it, decide what the null model must keep from `m_ar`, and what must go. If the two models differ in more than the condition terms, the comparison does not test noise alone.
 
-```{r task-7, include = FALSE}
+```{r}
+#| label: task-7
+#| include: false
 m_null <- bam(pupil ~ s(time, k = 20) + s(time, part_cond, bs = "fs", m = 1, k = 5),
               data = pdata, method = "ML", AR.start = pdata$time == 0, rho = rho)
 ```
@@ -266,7 +263,10 @@ Use `exclude_terms` for the random smooths, as in lecture 3. Then make the figur
 
 ## Checkpoint 3
 
-```{r check-3, echo = FALSE, fig.height = 3.1}
+```{r}
+#| label: check-3
+#| echo: false
+#| fig-height: 3.1
 p_curves <- predict_gam(m_ar, series = "time", length_out = 61, exclude_terms = "s(time,part_cond)") |>
   ggplot(aes(x = time, y = pupil, colour = condition_o, fill = condition_o)) +
   geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci), alpha = 0.25, colour = NA) +
@@ -302,7 +302,10 @@ The simulation has one more effect built in: the pupil response gets smaller ove
 - Add `s(trial, k = 5)` to `m_ar`. Does the model improve?
 - Then add `ti(time, trial)`. Does fatigue only shrink the curve, or does it change its shape too?
 
-```{r extra, eval = FALSE, echo = FALSE}
+```{r}
+#| label: extra
+#| eval: false
+#| echo: false
 m_trial <- bam(pupil ~ condition_o + s(time, k = 20) + s(time, by = condition_o, k = 20) +
                  s(trial, k = 5) + ti(time, trial, k = c(10, 5)) +
                  s(time, part_cond, bs = "fs", m = 1, k = 5),
