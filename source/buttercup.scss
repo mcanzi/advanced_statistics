@@ -169,6 +169,8 @@ body {
   font-weight: 400;
   letter-spacing: 0;
   color: var(--mist);
+  line-height: 1.05;
+  margin: 0 0 20px;
 }
 
 /* Quarto centres the title block; the course slides keep it on the left */
@@ -178,7 +180,8 @@ body {
 
 .reveal #title-slide .quarto-title-authors {
   display: block;
-  margin-top: 2.2em;
+  /* 2.2em of the author's 0.7em type, as in the {revealjs} theme */
+  margin-top: 1.54em;
 }
 
 .reveal #title-slide .quarto-title-author {
@@ -191,6 +194,7 @@ body {
   font-weight: 400;
   letter-spacing: 0;
   color: var(--muted);
+  line-height: 1.05;
   margin: 0;
 }
 
