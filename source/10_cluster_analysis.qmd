@@ -414,7 +414,7 @@ tibble(k = 2:6,
 
 The average silhouette width is highest at k = 3 in both generations. `silhouette()` comes from `{cluster}`, which is installed with `R`.
 
-## Clusters in noise {.smaller}
+## Clustering random noise {.smaller}
 
 ```{r}
 #| label: noise

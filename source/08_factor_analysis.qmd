@@ -472,7 +472,7 @@ efa_half <- fa(select(filter(la_half, half == 1), intelligent:identity),
 
 Check that the loadings of `efa_half` show the same three groups of items before you go on.
 
-## A confirmatory model in lavaan {.smaller}
+## Fitting a confirmatory model with lavaan {.smaller}
 
 ```{r}
 #| label: cfa

@@ -370,7 +370,7 @@ lex |>
 
 Frequency matters more for L2 speakers: the lines are not parallel.
 
-## An interaction in R
+## Fitting an interaction in R
 
 ```{r}
 m3 <- lm(log(rt) ~ freq_c * group, data = lex)
