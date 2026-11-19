@@ -54,14 +54,14 @@ Nothing here is new. If a slide feels unfamiliar, the matching lecture of the fi
 
 ```{r}
 #| eval: false
-install.packages("remotes")
-remotes::install_github("mcanzi/konstats")
+install.packages("konstats", repos = c("https://mcanzi.r-universe.dev",
+                                       "https://cloud.r-project.org"))
 konstats::install_course("advanced")
 ```
 
 . . .
 
-Installing `{konstats}` brings the packages of Statistics, `{simling}` included. `install_course("advanced")` adds the ones this course needs on top, such as `{mgcv}`, `{ranger}` and `{psych}`.
+The second line installs every package this course uses, from `{simling}` to `{mgcv}`, `{ranger}` and `{psych}`.
 
 ## Is your computer ready? {.smaller}
 
