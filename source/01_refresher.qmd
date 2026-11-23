@@ -38,7 +38,7 @@ This course builds on Statistics. Before we add anything new, we go once through
 
 . . .
 
-Nothing here is new. If a slide feels unfamiliar, the matching lecture of the first course has the details, and so does Winter (2019).
+Nothing here is new. If a slide feels unfamiliar, the matching lecture of Statistics ([mcanzi.de/statistics](https://mcanzi.de/statistics/01_course_introduction.html)) has the details, and so does Winter (2019).
 
 ## Today
 
@@ -161,19 +161,34 @@ y = b₀ + b₁ · x + e
 ## Intercept, slope and residuals
 
 ```{r}
-#| echo: false
-#| fig-height: 4.3
+#| label: line-frames
+#| include: false
 wm <- summarise(lex, log_rt = mean(log(rt)), .by = c(word, log_freq))
 mw <- lm(log_rt ~ log_freq, data = wm)
-ggplot(augment(mw), aes(x = log_freq, y = log_rt)) +
-  geom_abline(intercept = coef(mw)[1], slope = coef(mw)[2], colour = pandan, linewidth = 1.3) +
-  geom_segment(aes(xend = log_freq, yend = .fitted), colour = vine, linewidth = 0.8) +
-  geom_point(colour = kingfisher, size = 2.6) +
-  annotate("point", x = 0, y = coef(mw)[1], colour = hornbill, size = 4) +
-  annotate("text", x = 0.15, y = coef(mw)[1], label = "intercept", colour = hornbill, hjust = 0, size = 5) +
-  geom_vline(xintercept = 0, colour = muted, linetype = "dashed") +
-  scale_x_continuous(limits = c(0, 6.2)) +
-  labs(x = "log10 frequency", y = "Mean log RT per word")
+
+line_frame <- function(step) {
+  p <- ggplot(augment(mw), aes(x = log_freq, y = log_rt)) +
+    geom_vline(xintercept = 0, colour = muted, linetype = "dashed") +
+    geom_blank(aes(x = 0, y = coef(mw)[1])) +
+    scale_x_continuous(limits = c(0, 6.2)) +
+    labs(x = "log10 frequency", y = "Mean log RT per word")
+  if (step >= 2) {
+    p <- p +
+      geom_abline(intercept = coef(mw)[1], slope = coef(mw)[2], colour = pandan, linewidth = 1.3) +
+      annotate("point", x = 0, y = coef(mw)[1], colour = hornbill, size = 4) +
+      annotate("text", x = 0.15, y = coef(mw)[1], label = "intercept", colour = hornbill, hjust = 0, size = 5)
+  }
+  if (step >= 3) p <- p + geom_segment(aes(xend = log_freq, yend = .fitted), colour = vine, linewidth = 0.8)
+  p + geom_point(colour = kingfisher, size = 2.6)
+}
+```
+
+```{r}
+#| echo: false
+#| results: asis
+#| fig-height: 4.3
+frames(lapply(1:3, line_frame),
+       alt = "Mean log RT per word against log frequency, then the regression line and its intercept, then each word's residual")
 ```
 
 Word means, the regression line, and each word's residual (vertical lines). The intercept sits at log frequency 0, far from the data.
@@ -189,7 +204,7 @@ coef(m1)
 
 Each extra log unit of frequency multiplies RTs by `r round(exp(coef(m1)["log_freq"]), 3)`: responses about `r round(100 * (1 - exp(coef(m1)["log_freq"])), 1)`% faster. The intercept is the predicted log RT for a word with log frequency 0, which none of our words has (`exp()` turns it into `r round(exp(coef(m1)[1]))` ms).
 
-## Centering
+## Centring
 
 ```{r}
 lex <- lex |>
@@ -200,9 +215,9 @@ coef(lm(log(rt) ~ freq_c, data = lex))
 
 . . .
 
-[Centering]{.hl} moves 0 to the mean. The slope stays the same; the intercept becomes the predicted log RT for a word of average frequency (`r round(exp(coef(lm(log(rt) ~ freq_c, data = lex))[1]))` ms).
+[Centring]{.hl} moves 0 to the mean. The slope stays the same; the intercept becomes the predicted log RT for a word of average frequency (`r round(exp(coef(lm(log(rt) ~ freq_c, data = lex))[1]))` ms).
 
-## Centering, visually
+## The intercept after centring
 
 ```{r}
 #| echo: false
@@ -220,7 +235,7 @@ ggplot(wm2, aes(x = x, y = log_rt)) +
   labs(x = NULL, y = "Mean log RT per word")
 ```
 
-The line and its slope stay where they were. Centering moves 0, and with it the intercept (gold).
+The line and its slope stay where they were. Centring moves 0, and with it the intercept (gold).
 
 ## `tidy()` and `glance()`
 
@@ -265,7 +280,7 @@ coef(lm(log(rt) ~ group, data = lex))
 
 With [treatment coding]{.hl}, R's default, `group` becomes a 0/1 dummy. The intercept is the mean of the reference level (L1, the first level of the factor), and `groupL2` is the difference between L2 and L1.
 
-## Treatment and sum coding, visually
+## The intercept under each coding
 
 ```{r}
 #| echo: false
@@ -355,17 +370,28 @@ Frequent words tend to be short.
 _Source: Jouventin, Aubin & Lengagne (1999), Animal Behaviour_
 :::
 
-## Two groups, two slopes
+## A steeper slope for L2 speakers
+
+```{r}
+#| label: slope-frames
+#| include: false
+group_means <- summarise(lex, log_rt = mean(log(rt)), .by = c(group, word, log_freq))
+
+group_frame <- function(lines) {
+  p <- ggplot(group_means, aes(x = log_freq, y = log_rt, colour = group)) +
+    geom_point(alpha = 0.6, size = 2.2) +
+    labs(x = "log10 frequency", y = "Mean log RT per word", colour = NULL)
+  if (lines) p <- p + geom_smooth(method = "lm", se = FALSE, linewidth = 1.4)
+  p
+}
+```
 
 ```{r}
 #| echo: false
+#| results: asis
 #| fig-height: 4.2
-lex |>
-  summarise(log_rt = mean(log(rt)), .by = c(group, word, log_freq)) |>
-  ggplot(aes(x = log_freq, y = log_rt, colour = group)) +
-  geom_point(alpha = 0.6, size = 2.2) +
-  geom_smooth(method = "lm", se = FALSE, linewidth = 1.4) +
-  labs(x = "log10 frequency", y = "Mean log RT per word", colour = NULL)
+frames(list(group_frame(FALSE), group_frame(TRUE)),
+       alt = "Mean log RT per word against log frequency for L1 and L2 speakers, then a regression line for each group")
 ```
 
 Frequency matters more for L2 speakers: the lines are not parallel.
@@ -480,7 +506,7 @@ VarCorr(m4)
 - Participants' frequency slopes vary around the fixed slope with a standard deviation of about `r round(attr(VarCorr(m4)$participant, "stddev")[2], 3)`
 - `Residual` is the variation left over within participants and words
 
-## Random effects, visually
+## Random intercepts of participants and words
 
 ```{r}
 #| label: caterpillar
@@ -540,24 +566,40 @@ Estimate ± 1.96 SE for each fixed effect. The intervals widen most for `group1`
 ## Partial pooling
 
 ```{r}
-#| echo: false
-#| fig-height: 3.9
+#| label: pooling-frames
+#| include: false
 m_s <- lmer(log(rt) ~ freq_c + (1 + freq_c | participant), data = lex)
 nopool <- lex |>
   nest_by(participant) |>
   reframe(slope = coef(lm(log(rt) ~ freq_c, data = data))["freq_c"])
 pooled <- tibble(participant = rownames(coef(m_s)$participant),
                  partial = coef(m_s)$participant$freq_c)
-left_join(nopool, pooled, by = "participant") |>
-  mutate(participant = fct_reorder(participant, slope)) |>
-  ggplot(aes(y = participant)) +
-  geom_vline(xintercept = fixef(m_s)["freq_c"], colour = muted, linetype = "dashed") +
-  geom_segment(aes(x = slope, xend = partial, yend = participant), colour = vine, linewidth = 0.9) +
-  geom_point(aes(x = slope, colour = "Separate lm() per participant"), size = 2.4) +
-  geom_point(aes(x = partial, colour = "Mixed model"), size = 2.4) +
-  scale_colour_manual(values = c(`Separate lm() per participant` = pandan, `Mixed model` = kingfisher)) +
-  labs(x = "Frequency slope (log RT per log unit of frequency)", y = NULL, colour = NULL) +
-  theme(axis.text.y = element_blank(), panel.grid.major.y = element_blank())
+slopes <- left_join(nopool, pooled, by = "participant") |>
+  mutate(participant = fct_reorder(participant, slope))
+
+pooling_frame <- function(pooled_shown) {
+  p <- ggplot(slopes, aes(y = participant)) +
+    geom_blank(aes(x = partial)) +
+    geom_vline(xintercept = fixef(m_s)["freq_c"], colour = muted, linetype = "dashed") +
+    scale_colour_manual(values = c(`Separate lm() per participant` = pandan, `Mixed model` = kingfisher),
+                        limits = c("Separate lm() per participant", "Mixed model")) +
+    labs(x = "Frequency slope (log RT per log unit of frequency)", y = NULL, colour = NULL) +
+    theme(axis.text.y = element_blank(), panel.grid.major.y = element_blank())
+  if (pooled_shown) {
+    p <- p +
+      geom_segment(aes(x = slope, xend = partial, yend = participant), colour = vine, linewidth = 0.9) +
+      geom_point(aes(x = partial, colour = "Mixed model"), size = 2.4)
+  }
+  p + geom_point(aes(x = slope, colour = "Separate lm() per participant"), size = 2.4)
+}
+```
+
+```{r}
+#| echo: false
+#| results: asis
+#| fig-height: 3.9
+frames(list(pooling_frame(FALSE), pooling_frame(TRUE)),
+       alt = "Each participant's frequency slope from a separate lm(), then the mixed model's estimate for that participant, pulled towards the overall slope")
 ```
 
 Each participant's slope moves toward the overall slope (dashed). This [shrinkage]{.hl}, also called [partial pooling]{.hl}, lets extreme estimates borrow strength from the rest of the sample.
@@ -607,19 +649,19 @@ Report the full model structure, the coding of each predictor, and how the model
 ## Summary
 
 ::: {.takeaway}
-- A linear model estimates an [intercept]{.hl} and [slopes]{.hl}; centering makes the intercept meaningful
+- A linear model estimates an [intercept]{.hl} and [slopes]{.hl}; centring makes the intercept meaningful
 - Treatment and sum coding answer different questions about categorical predictors
 - With several predictors, each slope holds the others constant; collinearity makes slopes uncertain
-- In an [interaction]{.hl} model, each lower-order term is a simple effect, so coding and centering decide what it means
+- In an [interaction]{.hl} model, each lower-order term is a simple effect, so coding and centring decide what it means
 - [Mixed models]{.hl} add random intercepts and slopes for participants and items, which gives honest standard errors and shrinks individual estimates toward the group
 :::
 
 ## References {.refs}
 
-- Barr, D. J., Levy, R., Scheepers, C., & Tily, H. J. (2013). Random effects structure for confirmatory hypothesis testing: Keep it maximal. _Journal of Memory and Language_, 68(3), 255–278.
-- Bates, D., Mächler, M., Bolker, B., & Walker, S. (2015). Fitting linear mixed-effects models using lme4. _Journal of Statistical Software_, 67(1), 1–48.
-- Kuznetsova, A., Brockhoff, P. B., & Christensen, R. H. B. (2017). lmerTest package: Tests in linear mixed effects models. _Journal of Statistical Software_, 82(13), 1–26.
-- [Winter, B. (2019). _Statistics for Linguists: An Introduction Using R_. Routledge. Chapters 4–8, 14 and 15.]{.hl}
+- Barr, D. J., Levy, R., Scheepers, C., & Tily, H. J. (2013). Random effects structure for confirmatory hypothesis testing: Keep it maximal. _Journal of Memory and Language_, 68(3), 255–278. https://doi.org/10.1016/j.jml.2012.11.001
+- Bates, D., Mächler, M., Bolker, B., & Walker, S. (2015). Fitting linear mixed-effects models using lme4. _Journal of Statistical Software_, 67(1), 1–48. https://doi.org/10.18637/jss.v067.i01
+- Kuznetsova, A., Brockhoff, P. B., & Christensen, R. H. B. (2017). lmerTest package: Tests in linear mixed effects models. _Journal of Statistical Software_, 82(13), 1–26. https://doi.org/10.18637/jss.v082.i13
+- [Winter, B. (2019). _Statistics for Linguists: An Introduction Using R_. Routledge. Chapters 4–8, 14 and 15. https://doi.org/10.4324/9781315165547]{.hl}
 
 ## Sources of the animal facts {.refs}
 

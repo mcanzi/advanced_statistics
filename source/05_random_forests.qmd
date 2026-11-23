@@ -38,7 +38,7 @@ Every model so far started from a formula that we wrote: which predictors, which
 
 . . .
 
-In linguistics, random forests are popular for data with many predictors that are correlated with each other, such as corpus and sociolinguistic data (Tagliamonte & Baayen, 2012). This lecture explains how they work; next time you build one yourselves.
+In linguistics, random forests are popular for data with many predictors that are correlated with each other, such as corpus and sociolinguistic data (Tagliamonte & Baayen, 2012). This lecture explains how they work; lecture 6 builds one step by step.
 
 ## Today
 
@@ -124,15 +124,14 @@ Read each line as a rule: the condition, the number of tokens, the misclassified
 
 ```{r}
 #| label: overfit
-#| echo: false
-#| fig-height: 2.6
+#| include: false
 train <- filter(td, speaker %in% sprintf("S%02d", 1:30))
 test <- filter(td, !speaker %in% sprintf("S%02d", 1:30))
 acc <- function(pred, obs) mean(pred == obs)
 deep <- rpart(f, data = train, method = "class", control = rpart.control(cp = 0, minsplit = 2, minbucket = 1, xval = 0))
 small <- rpart(f, data = train, method = "class", control = rpart.control(maxdepth = 3))
 rf_split <- ranger(f, data = train, num.trees = 500, seed = 1)
-tibble(model = rep(c("Deep tree", "Tree, depth 3", "Random forest"), each = 2),
+accuracies <- tibble(model = rep(c("Deep tree", "Tree, depth 3", "Random forest"), each = 2),
        data = rep(c("Training speakers", "New speakers"), 3),
        accuracy = c(acc(predict(deep, train, type = "class"), train$deleted),
                     acc(predict(deep, test, type = "class"), test$deleted),
@@ -140,14 +139,27 @@ tibble(model = rep(c("Deep tree", "Tree, depth 3", "Random forest"), each = 2),
                     acc(predict(small, test, type = "class"), test$deleted),
                     acc(predict(rf_split, train)$predictions, train$deleted),
                     acc(predict(rf_split, test)$predictions, test$deleted))) |>
-  mutate(model = fct_inorder(model), data = fct_inorder(data)) |>
-  ggplot(aes(x = model, y = accuracy, fill = data)) +
-  geom_col(position = position_dodge(width = 0.7), width = 0.6) +
-  geom_text(aes(label = round(accuracy, 2)), position = position_dodge(width = 0.7), vjust = -0.4, colour = mist, size = 5) +
-  scale_fill_manual(values = c(pandan, kingfisher)) +
-  scale_y_continuous(limits = c(0, 1.1), breaks = seq(0, 1, 0.25)) +
-  labs(x = NULL, y = "Accuracy", fill = NULL) +
-  theme(legend.position = "right")
+  mutate(model = fct_inorder(model), data = fct_inorder(data))
+
+accuracy_frame <- function(k) {
+  shown <- filter(accuracies, as.integer(model) <= k)
+  ggplot(accuracies, aes(x = model, y = accuracy, fill = data)) +
+    geom_blank() +
+    geom_col(data = shown, position = position_dodge(width = 0.7), width = 0.6) +
+    geom_text(data = shown, aes(label = round(accuracy, 2)), position = position_dodge(width = 0.7), vjust = -0.4, colour = mist, size = 5) +
+    scale_fill_manual(values = c(pandan, kingfisher), limits = levels(accuracies$data)) +
+    scale_y_continuous(limits = c(0, 1.1), breaks = seq(0, 1, 0.25)) +
+    labs(x = NULL, y = "Accuracy", fill = NULL) +
+    theme(legend.position = "right")
+}
+```
+
+```{r}
+#| echo: false
+#| results: asis
+#| fig-height: 2.6
+frames(lapply(1:3, accuracy_frame),
+       alt = "Accuracy on training speakers and new speakers for a deep tree, then a tree of depth 3, then a random forest")
 ```
 
 Trained on 30 speakers, tested on 10 new ones. The deep tree learns the noise of its training data and does worst on new speakers. The forest fits its training data perfectly too, so its training accuracy says little; on new speakers it matches the depth-3 tree. Its advantage is stability: small changes in the data can change a single tree completely.
@@ -206,7 +218,7 @@ tibble(mtry = 1:9) |>
 ```
 
 - Extra trees (`num.trees`) cost computing time but do not make the forest worse. Use enough that results do not change between seeds
-- The settings `mtry` and `min.node.size` matter more. The defaults are often close to the best values, as here (the default in orange)
+- The settings `mtry` and `min.node.size` matter more. The defaults are often close to the best values, as here (the default in salmon)
 
 # Variable importance
 
@@ -228,17 +240,28 @@ A forest has no coefficients. To see which predictors it relies on, shuffle one 
 
 ```{r}
 #| label: importance
-#| echo: false
-#| fig-height: 3.2
+#| include: false
 rf_imp <- ranger(f, data = td, num.trees = 1000, importance = "impurity", seed = 1)
-bind_rows(`Permutation importance` = enframe(rf$variable.importance),
-          `Impurity importance` = enframe(rf_imp$variable.importance), .id = "type") |>
+importances <- bind_rows(`Permutation importance` = enframe(rf$variable.importance),
+                         `Impurity importance` = enframe(rf_imp$variable.importance), .id = "type") |>
   mutate(value = value / max(value), .by = type) |>
-  mutate(name = fct_reorder(name, value, .fun = max)) |>
-  ggplot(aes(x = value, y = name)) +
-  geom_col(fill = kingfisher, width = 0.65) +
-  facet_wrap(~ type) +
-  labs(x = "Importance, relative to the largest", y = NULL)
+  mutate(name = fct_reorder(name, value, .fun = max), type = fct_inorder(type))
+
+importance_frame <- function(k) {
+  ggplot(importances, aes(x = value, y = name)) +
+    geom_blank() +
+    geom_col(data = filter(importances, as.integer(type) <= k), fill = kingfisher, width = 0.65) +
+    facet_wrap(~ type) +
+    labs(x = "Importance, relative to the largest", y = NULL)
+}
+```
+
+```{r}
+#| echo: false
+#| results: asis
+#| fig-height: 3.2
+frames(lapply(1:2, importance_frame),
+       alt = "Permutation importance of the nine predictors, then their impurity importance next to it")
 ```
 
 [Impurity importance]{.hl} adds up how much each predictor improved the splits. It is fast, but it favours continuous predictors and factors with many levels (Strobl et al., 2007). Compare `noise_cont` and `noise_bin`: both are noise.
@@ -248,7 +271,7 @@ bind_rows(`Permutation importance` = enframe(rf$variable.importance),
 Education has no effect in our data. Whatever importance it gets comes from its correlation with age: shuffling `education` breaks that link, and the forest loses some of the information it took from the pair.
 
 - Permutation importance is [marginal]{.hl}: it credits a predictor for what it shares with others
-- [Conditional]{.hl} permutation importance shuffles a predictor only within groups of similar values of the correlated predictors, so it asks what a predictor adds on top of the others (Strobl et al., 2008; Debeer & Strobl, 2020). In `R`: `permimp::permimp()` on a forest from `party::cforest()`
+- [Conditional]{.hl} permutation importance shuffles a predictor only within groups of similar values of the correlated predictors, so it asks what a predictor adds on top of the others (Strobl et al., 2008; Debeer & Strobl, 2020). In R: `permimp::permimp()` on a forest from `party::cforest()`
 
 ## Partial dependence {.smaller}
 
@@ -316,7 +339,7 @@ _Source: van Noordwijk et al. (2018), Journal of Human Evolution_
 ## What forests do not give you
 
 - No coefficients, standard errors or p-values. Importance is a ranking, and says nothing about the direction or shape of an effect
-- No random effects. Tokens from the same speaker are not independent, and the OOB error ignores that: a forest can recognise the speaker and look up the answer, which does not carry over to new speakers (next lecture)
+- No random effects. Tokens from the same speaker are not independent, and the OOB error ignores that: a forest can recognise the speaker and look up the answer, which does not carry over to new speakers (lecture 6)
 - The results depend on the seed, the settings and the importance measure, so they need to be reported in full
 
 ## Both together
@@ -347,15 +370,18 @@ Add the seed, how importance changed between seeds, and partial dependence plots
 
 ## References {.refs}
 
-- Breiman, L. (1996). Bagging predictors. _Machine Learning_, 24(2), 123–140.
-- Breiman, L. (2001). Random forests. _Machine Learning_, 45(1), 5–32.
-- Debeer, D., & Strobl, C. (2020). Conditional permutation importance revisited. _BMC Bioinformatics_, 21, 307.
-- Friedman, J. H. (2001). Greedy function approximation: A gradient boosting machine. _Annals of Statistics_, 29(5), 1189–1232.
-- Strobl, C., Boulesteix, A.-L., Zeileis, A., & Hothorn, T. (2007). Bias in random forest variable importance measures: Illustrations, sources and a solution. _BMC Bioinformatics_, 8, 25.
-- Strobl, C., Boulesteix, A.-L., Kneib, T., Augustin, T., & Zeileis, A. (2008). Conditional variable importance for random forests. _BMC Bioinformatics_, 9, 307.
-- [Strobl, C., Malley, J., & Tutz, G. (2009). An introduction to recursive partitioning: Rationale, application, and characteristics of classification and regression trees, bagging, and random forests. _Psychological Methods_, 14(4), 323–348.]{.hl}
-- Tagliamonte, S. A., & Baayen, R. H. (2012). Models, forests, and trees of York English: _Was/were_ variation as a case study for statistical practice. _Language Variation and Change_, 24(2), 135–178.
-- Wright, M. N., & Ziegler, A. (2017). ranger: A fast implementation of random forests for high dimensional data in C++ and R. _Journal of Statistical Software_, 77(1), 1–17.
+- Breiman, L. (1996). Bagging predictors. _Machine Learning_, 24(2), 123–140. https://doi.org/10.1023/A:1018054314350
+- Breiman, L. (2001). Random forests. _Machine Learning_, 45(1), 5–32. https://doi.org/10.1023/A:1010933404324
+- Debeer, D., & Strobl, C. (2020). Conditional permutation importance revisited. _BMC Bioinformatics_, 21, 307. https://doi.org/10.1186/s12859-020-03622-2
+- Friedman, J. H. (2001). Greedy function approximation: A gradient boosting machine. _Annals of Statistics_, 29(5), 1189–1232. https://doi.org/10.1214/aos/1013203451
+
+## References (continued) {.refs}
+
+- Strobl, C., Boulesteix, A.-L., Kneib, T., Augustin, T., & Zeileis, A. (2008). Conditional variable importance for random forests. _BMC Bioinformatics_, 9, 307. https://doi.org/10.1186/1471-2105-9-307
+- Strobl, C., Boulesteix, A.-L., Zeileis, A., & Hothorn, T. (2007). Bias in random forest variable importance measures: Illustrations, sources and a solution. _BMC Bioinformatics_, 8, 25. https://doi.org/10.1186/1471-2105-8-25
+- [Strobl, C., Malley, J., & Tutz, G. (2009). An introduction to recursive partitioning: Rationale, application, and characteristics of classification and regression trees, bagging, and random forests. _Psychological Methods_, 14(4), 323–348. https://doi.org/10.1037/a0016973]{.hl}
+- Tagliamonte, S. A., & Baayen, R. H. (2012). Models, forests, and trees of York English: _Was/were_ variation as a case study for statistical practice. _Language Variation and Change_, 24(2), 135–178. https://doi.org/10.1017/S0954394512000129
+- Wright, M. N., & Ziegler, A. (2017). ranger: A fast implementation of random forests for high dimensional data in C++ and R. _Journal of Statistical Software_, 77(1), 1–17. https://doi.org/10.18637/jss.v077.i01
 
 ## Sources of the animal facts {.refs}
 

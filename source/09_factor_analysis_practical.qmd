@@ -31,9 +31,9 @@ options(width = 70, pillar.print_min = 4, pillar.print_max = 4)
 _Source: Seyfarth, Cheney & Marler (1980), Science_
 :::
 
-## How today works
+## How this session works
 
-As in lectures 4 and 6: you work in pairs, the task slides say what to do, checkpoints show what you should get, and the solutions are in the `.Rmd` file of these slides on GitHub. The tutorial sheet for today: `konstats::get_tutorial(9, ".", course = "advanced")`.
+As in lectures 4 and 6: you work on your own or in pairs, the task slides say what to do, checkpoints show what you should get, and the solutions are in the source of these slides, `source/09_factor_analysis_practical.qmd` at [github.com/mcanzi/advanced_statistics](https://github.com/mcanzi/advanced_statistics). The tutorial sheet for this session: `konstats::get_tutorial(9, ".", course = "advanced")`.
 
 . . .
 
@@ -199,17 +199,30 @@ n_dims <- which(eig < rowMeans(eig_random))[1] - 1
 
 ```{r}
 #| label: check-3
+#| include: false
+eigenvalues <- tibble(dimension = seq_along(eig), Observed = eig, `Random data` = rowMeans(eig_random)) |>
+  pivot_longer(-dimension, names_to = "data", values_to = "eigenvalue")
+
+scree_frame <- function(random) {
+  shown <- if (random) eigenvalues else filter(eigenvalues, data == "Observed")
+  ggplot(eigenvalues, aes(x = dimension, y = eigenvalue, colour = data, shape = data)) +
+    geom_blank() +
+    geom_line(data = shown, linewidth = 1) +
+    geom_point(data = shown, size = 3) +
+    scale_colour_manual(values = c(kingfisher, pandan), limits = c("Observed", "Random data")) +
+    scale_shape_manual(values = c(16, 17), limits = c("Observed", "Random data")) +
+    scale_x_continuous(breaks = seq_along(eig)) +
+    labs(x = "Dimension", y = "Eigenvalue", colour = NULL, shape = NULL) +
+    theme(legend.position = "right")
+}
+```
+
+```{r}
 #| echo: false
+#| results: asis
 #| fig-height: 3.2
-tibble(dimension = seq_along(eig), Observed = eig, `Random data` = rowMeans(eig_random)) |>
-  pivot_longer(-dimension, names_to = "data", values_to = "eigenvalue") |>
-  ggplot(aes(x = dimension, y = eigenvalue, colour = data, shape = data)) +
-  geom_line(linewidth = 1) +
-  geom_point(size = 3) +
-  scale_colour_manual(values = c(kingfisher, pandan)) +
-  scale_x_continuous(breaks = seq_along(eig)) +
-  labs(x = "Dimension", y = "Eigenvalue", colour = NULL, shape = NULL) +
-  theme(legend.position = "right")
+frames(list(scree_frame(FALSE), scree_frame(TRUE)),
+       alt = "Eigenvalues of the 16 features in order, then the mean eigenvalues of random data for comparison")
 ```
 
 Overall KMO without `pronouns`: `r round(KMO(features)$MSA, 2)`. Parallel analysis keeps `r n_dims` dimensions.
@@ -310,16 +323,29 @@ register_scores <- scores |>
 
 ```{r}
 #| label: check-5
+#| include: false
+register_dims <- register_scores |>
+  mutate(register = fct_rev(register), dimension = factor(dimension))
+
+dimension_frame <- function(k) {
+  shown <- filter(register_dims, as.integer(dimension) <= k)
+  ggplot(register_dims, aes(x = mean, y = register)) +
+    geom_blank(aes(x = mean - sd)) +
+    geom_blank(aes(x = mean + sd)) +
+    geom_vline(xintercept = 0, colour = muted, linetype = "dashed") +
+    geom_errorbar(data = shown, aes(xmin = mean - sd, xmax = mean + sd), width = 0.25, colour = kingfisher) +
+    geom_point(data = shown, colour = kingfisher, size = 3) +
+    facet_wrap(~ dimension) +
+    labs(x = "Mean score, ± 1 SD", y = NULL)
+}
+```
+
+```{r}
 #| echo: false
+#| results: asis
 #| fig-height: 3.4
-register_scores |>
-  mutate(register = fct_rev(register)) |>
-  ggplot(aes(x = mean, y = register)) +
-  geom_vline(xintercept = 0, colour = muted, linetype = "dashed") +
-  geom_errorbar(aes(xmin = mean - sd, xmax = mean + sd), width = 0.25, colour = kingfisher) +
-  geom_point(colour = kingfisher, size = 3) +
-  facet_wrap(~ dimension) +
-  labs(x = "Mean score, ± 1 SD", y = NULL)
+frames(lapply(seq_len(nlevels(register_dims$dimension)), dimension_frame),
+       alt = "Mean dimension score of each register with ± 1 SD, one dimension at a time")
 ```
 
 The registers overlap on every dimension, even where their means are far apart, because texts within a register vary.
@@ -334,7 +360,7 @@ Write a short methods and results paragraph. It should say:
 
 . . .
 
-Then swap with another pair: could a reviewer object to anything in theirs?
+Could a reviewer object to anything in your paragraph? If you work with others, swap paragraphs and check each other's.
 
 ## If you finish early
 
@@ -356,10 +382,10 @@ To prepare for the cluster analysis practical in lecture 11, plot every text on 
 
 ## References {.refs}
 
-- Bartlett, M. S. (1950). Tests of significance in factor analysis. _British Journal of Psychology, Statistical Section_, 3(2), 77–85.
-- Biber, D. (1988). _Variation across speech and writing_. Cambridge University Press.
+- Bartlett, M. S. (1950). Tests of significance in factor analysis. _British Journal of Psychology, Statistical Section_, 3(2), 77–85. https://doi.org/10.1111/j.2044-8317.1950.tb00285.x
+- Biber, D. (1988). _Variation across speech and writing_. Cambridge University Press. https://doi.org/10.1017/CBO9780511621024
 - [Ehret, K., & Taboada, M. (2021). Characterising online news comments: A multi-dimensional cruise through online registers. _Frontiers in Artificial Intelligence_, 4, 643770. https://doi.org/10.3389/frai.2021.643770]{.hl}
-- Kaiser, H. F. (1974). An index of factorial simplicity. _Psychometrika_, 39(1), 31–36.
+- Kaiser, H. F. (1974). An index of factorial simplicity. _Psychometrika_, 39(1), 31–36. https://doi.org/10.1007/BF02291575
 - Revelle, W. (`r format(packageDate("psych"), "%Y")`). _psych: Procedures for psychological, psychometric, and personality research_ [R package]. Northwestern University. https://CRAN.R-project.org/package=psych
 
 ## Sources of the animal facts {.refs}

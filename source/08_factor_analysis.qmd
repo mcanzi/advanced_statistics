@@ -64,7 +64,7 @@ Every variable in our models so far was measured directly, such as a reaction ti
 
 . . .
 
-[Factor analysis]{.hl} asks how many underlying variables, the [factors]{.hl}, are needed to explain the correlations between the indicators, and which indicators belong to which factor. This lecture explains exploratory factor analysis; next time you run one on corpus data.
+[Factor analysis]{.hl} asks how many underlying variables, the [factors]{.hl}, are needed to explain the correlations between the indicators, and which indicators belong to which factor. This lecture explains exploratory factor analysis; lecture 9 runs one on corpus data.
 
 ## Today
 
@@ -173,22 +173,33 @@ intelligent = λ1 × status + λ2 × solidarity + λ3 × vitality + unique part
 
 ```{r}
 #| label: pca-fa
-#| echo: false
-#| fig-height: 3.3
+#| include: false
 la <- language_attitudes |>
   mutate(lazy = 6 - lazy, cold = 6 - cold)
 items <- select(la, intelligent:identity)
 efa <- fa(items, nfactors = 3, rotate = "oblimin", fm = "minres", cor = "poly")
 pca <- principal(items, nfactors = 3, rotate = "oblimin", cor = "poly")
-bind_rows(`Factor analysis` = own_loadings(efa), PCA = own_loadings(pca), .id = "method") |>
-  ggplot(aes(x = true, y = loading, colour = method, shape = method)) +
-  geom_abline(colour = muted, linetype = "dashed") +
-  geom_point(size = 3.2, stroke = 1.1) +
-  scale_colour_manual(values = c(pandan, kingfisher)) +
-  scale_shape_manual(values = c(16, 1)) +
-  coord_equal(xlim = c(0.45, 1), ylim = c(0.45, 1)) +
-  labs(x = "True loading", y = "Estimated loading", colour = NULL, shape = NULL) +
-  theme(legend.position = "right")
+method_loadings <- bind_rows(`Factor analysis` = own_loadings(efa), PCA = own_loadings(pca), .id = "method") |>
+  mutate(method = fct_inorder(method))
+
+method_frame <- function(k) {
+  ggplot(filter(method_loadings, as.integer(method) <= k), aes(x = true, y = loading, colour = method, shape = method)) +
+    geom_abline(colour = muted, linetype = "dashed") +
+    geom_point(size = 3.2, stroke = 1.1) +
+    scale_colour_manual(values = c(pandan, kingfisher), limits = levels(method_loadings$method)) +
+    scale_shape_manual(values = c(16, 1), limits = levels(method_loadings$method)) +
+    coord_equal(xlim = c(0.45, 1), ylim = c(0.45, 1)) +
+    labs(x = "True loading", y = "Estimated loading", colour = NULL, shape = NULL) +
+    theme(legend.position = "right")
+}
+```
+
+```{r}
+#| echo: false
+#| results: asis
+#| fig-height: 3.3
+frames(lapply(1:2, method_frame),
+       alt = "Estimated against true loadings of the 12 items, first from factor analysis, close to the diagonal, then from PCA, above it")
 ```
 
 Each point is an item, on its own attitude, after reverse coding. PCA loadings lie above the dashed line, where estimates equal the true values.
@@ -237,18 +248,31 @@ n_factors
 
 ```{r}
 #| label: scree
+#| include: false
+eigenvalues <- tibble(dimension = seq_along(eig), Observed = eig, `Random data` = rowMeans(eig_random)) |>
+  pivot_longer(-dimension, names_to = "data", values_to = "eigenvalue")
+
+scree_frame <- function(random) {
+  shown <- if (random) eigenvalues else filter(eigenvalues, data == "Observed")
+  ggplot(eigenvalues, aes(x = dimension, y = eigenvalue, colour = data, shape = data)) +
+    geom_blank() +
+    geom_hline(yintercept = 1, colour = muted, linetype = "dashed") +
+    geom_line(data = shown, linewidth = 1) +
+    geom_point(data = shown, size = 3) +
+    scale_colour_manual(values = c(kingfisher, pandan), limits = c("Observed", "Random data")) +
+    scale_shape_manual(values = c(16, 17), limits = c("Observed", "Random data")) +
+    scale_x_continuous(breaks = 1:12) +
+    labs(x = "Dimension", y = "Eigenvalue", colour = NULL, shape = NULL) +
+    theme(legend.position = "right")
+}
+```
+
+```{r}
 #| echo: false
+#| results: asis
 #| fig-height: 2.8
-tibble(dimension = seq_along(eig), Observed = eig, `Random data` = rowMeans(eig_random)) |>
-  pivot_longer(-dimension, names_to = "data", values_to = "eigenvalue") |>
-  ggplot(aes(x = dimension, y = eigenvalue, colour = data, shape = data)) +
-  geom_hline(yintercept = 1, colour = muted, linetype = "dashed") +
-  geom_line(linewidth = 1) +
-  geom_point(size = 3) +
-  scale_colour_manual(values = c(kingfisher, pandan)) +
-  scale_x_continuous(breaks = 1:12) +
-  labs(x = "Dimension", y = "Eigenvalue", colour = NULL, shape = NULL) +
-  theme(legend.position = "right")
+frames(list(scree_frame(FALSE), scree_frame(TRUE)),
+       alt = "Eigenvalues of the 12 dimensions in order, then the mean eigenvalues of random data for comparison")
 ```
 
 A [scree plot]{.hl} shows the eigenvalues in order. Cattell (1966) suggested keeping the dimensions before the curve flattens; parallel analysis adds a line to compare against. Theory and interpretability count too: three attitudes went into the questionnaire, and each factor kept should make sense.
@@ -537,27 +561,27 @@ Add the loadings table, the factor correlations, how you treated missing answers
 
 ## References {.refs}
 
-- Cattell, R. B. (1966). The scree test for the number of factors. _Multivariate Behavioral Research_, 1(2), 245–276.
-- Dragojevic, M., Fasoli, F., Cramer, J., & Rakić, T. (2021). Toward a century of language attitudes research: Looking back and moving forward. _Journal of Language and Social Psychology_, 40(1), 60–79.
-- [Fabrigar, L. R., Wegener, D. T., MacCallum, R. C., & Strahan, E. J. (1999). Evaluating the use of exploratory factor analysis in psychological research. _Psychological Methods_, 4(3), 272–299.]{.hl}
+- Cattell, R. B. (1966). The scree test for the number of factors. _Multivariate Behavioral Research_, 1(2), 245–276. https://doi.org/10.1207/s15327906mbr0102_10
+- Dragojevic, M., Fasoli, F., Cramer, J., & Rakić, T. (2021). Toward a century of language attitudes research: Looking back and moving forward. _Journal of Language and Social Psychology_, 40(1), 60–79. https://doi.org/10.1177/0261927X20966714
+- [Fabrigar, L. R., Wegener, D. T., MacCallum, R. C., & Strahan, E. J. (1999). Evaluating the use of exploratory factor analysis in psychological research. _Psychological Methods_, 4(3), 272–299. https://doi.org/10.1037/1082-989X.4.3.272]{.hl}
 - Giles, H., Bourhis, R. Y., & Taylor, D. M. (1977). Towards a theory of language in ethnic group relations. In H. Giles (Ed.), _Language, ethnicity and intergroup relations_ (pp. 307–348). Academic Press.
-- Holgado-Tello, F. P., Chacón-Moscoso, S., Barbero-García, I., & Vila-Abad, E. (2010). Polychoric versus Pearson correlations in exploratory and confirmatory factor analysis of ordinal variables. _Quality & Quantity_, 44(1), 153–166.
-- Horn, J. L. (1965). A rationale and test for the number of factors in factor analysis. _Psychometrika_, 30(2), 179–185.
+- Holgado-Tello, F. P., Chacón-Moscoso, S., Barbero-García, I., & Vila-Abad, E. (2010). Polychoric versus Pearson correlations in exploratory and confirmatory factor analysis of ordinal variables. _Quality & Quantity_, 44(1), 153–166. https://doi.org/10.1007/s11135-008-9190-y
+- Horn, J. L. (1965). A rationale and test for the number of factors in factor analysis. _Psychometrika_, 30(2), 179–185. https://doi.org/10.1007/BF02289447
 
 ## References (continued) {.refs}
 
-- Hu, L., & Bentler, P. M. (1999). Cutoff criteria for fit indexes in covariance structure analysis: Conventional criteria versus new alternatives. _Structural Equation Modeling_, 6(1), 1–55.
-- Kaiser, H. F. (1960). The application of electronic computers to factor analysis. _Educational and Psychological Measurement_, 20(1), 141–151.
-- McNeish, D. (2018). Thanks coefficient alpha, we'll take it from here. _Psychological Methods_, 23(3), 412–433.
+- Hu, L., & Bentler, P. M. (1999). Cutoff criteria for fit indexes in covariance structure analysis: Conventional criteria versus new alternatives. _Structural Equation Modeling_, 6(1), 1–55. https://doi.org/10.1080/10705519909540118
+- Kaiser, H. F. (1960). The application of electronic computers to factor analysis. _Educational and Psychological Measurement_, 20(1), 141–151. https://doi.org/10.1177/001316446002000116
+- McNeish, D. (2018). Thanks coefficient alpha, we'll take it from here. _Psychological Methods_, 23(3), 412–433. https://doi.org/10.1037/met0000144
 - Revelle, W. (`r format(packageDate("psych"), "%Y")`). _psych: Procedures for psychological, psychometric, and personality research_ [R package]. Northwestern University. https://CRAN.R-project.org/package=psych
-- Rosseel, Y. (2012). lavaan: An R package for structural equation modeling. _Journal of Statistical Software_, 48(2), 1–36.
-- Zwick, W. R., & Velicer, W. F. (1986). Comparison of five rules for determining the number of components to retain. _Psychological Bulletin_, 99(3), 432–442.
+- Rosseel, Y. (2012). lavaan: An R package for structural equation modeling. _Journal of Statistical Software_, 48(2), 1–36. https://doi.org/10.18637/jss.v048.i02
+- Zwick, W. R., & Velicer, W. F. (1986). Comparison of five rules for determining the number of components to retain. _Psychological Bulletin_, 99(3), 432–442. https://doi.org/10.1037/0033-2909.99.3.432
 
 ## Sources of the animal facts {.refs}
 
 - Derryberry, E. P., Phillips, J. N., Derryberry, G. E., Blum, M. J., & Luther, D. (2020). Singing in a silent spring: Birds respond to a half-century soundscape reversion during the COVID-19 shutdown. _Science_, 370(6516), 575–579. https://doi.org/10.1126/science.abd5777
-- Konishi, M. (1965). The role of auditory feedback in the control of vocalization in the white-crowned sparrow. _Zeitschrift für Tierpsychologie_, 22(7), 770–783.
-- Marler, P., & Tamura, M. (1962). Song "dialects" in three populations of white-crowned sparrows. _The Condor_, 64(5), 368–377.
+- Konishi, M. (1965). The role of auditory feedback in the control of vocalization in the white-crowned sparrow. _Zeitschrift für Tierpsychologie_, 22(7), 770–783. https://doi.org/10.1111/j.1439-0310.1965.tb01688.x
+- Marler, P., & Tamura, M. (1962). Song "dialects" in three populations of white-crowned sparrows. _The Condor_, 64(5), 368–377. https://doi.org/10.2307/1365545
 - Marler, P., & Tamura, M. (1964). Culturally transmitted patterns of vocal behavior in sparrows. _Science_, 146(3650), 1483–1486. https://doi.org/10.1126/science.146.3650.1483
 - Rattenborg, N. C., Mandt, B. H., Obermeyer, W. H., Winsauer, P. J., Huber, R., Wikelski, M., & Benca, R. M. (2004). Migratory sleeplessness in the white-crowned sparrow (_Zonotrichia leucophrys gambelii_). _PLoS Biology_, 2(7), e212. https://doi.org/10.1371/journal.pbio.0020212
 

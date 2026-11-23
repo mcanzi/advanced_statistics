@@ -52,7 +52,6 @@ options(
   ggplot2.discrete.fill = c(kingfisher, pandan, hornbill)
 )
 
-# .Rmd and .qmd sessions (Quarto knits a copy such as 01_refresher.rmarkdown)
 lecture_file <- sub("\\..*$", ".html", basename(knitr::current_input()))
 lecture_count <- max(as.integer(substr(list.files(pattern = "^[0-9]{2}_.*\\.(Rmd|qmd)$"), 1, 2)))
 lecture_label <- sprintf('"lecture %s / %s"', substr(lecture_file, 1, 2), lecture_count)
@@ -66,3 +65,21 @@ if (requireNamespace("qrcode", quietly = TRUE)) {
   qr_uri <- xfun::base64_uri(qr_file)
 }
 qr_css <- if (nzchar(qr_uri)) sprintf('url("%s")', qr_uri) else "none"
+
+frames <- function(plots, alt = "") {
+  opts <- knitr::opts_current$get()
+  device <- if (requireNamespace("ragg", quietly = TRUE)) ragg::agg_png else "png"
+  files <- vapply(seq_along(plots), \(i) {
+    file <- knitr::fig_path(".png", number = i)
+    dir.create(dirname(file), recursive = TRUE, showWarnings = FALSE)
+    ggplot2::ggsave(file, plots[[i]], width = opts$fig.width, height = opts$fig.height,
+                    dpi = opts$dpi, device = device, bg = "transparent")
+    file
+  }, character(1))
+  n <- length(files)
+  classes <- c(".fragment .fade-out", rep(".fragment .fade-in-then-out", max(n - 2, 0)), ".fragment")
+  index <- c(1, seq_len(n - 1))
+  alt <- rep_len(alt, n)
+  images <- sprintf('![](%s){%s fragment-index=%d fig-alt="%s"}', files, classes, index, alt)
+  cat("::: {.r-stack}", images, ":::", sep = "\n\n")
+}

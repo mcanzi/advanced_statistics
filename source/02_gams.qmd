@@ -109,16 +109,25 @@ The line misses the shape, and the residuals follow a pattern: neighbouring resi
 
 ```{r}
 #| label: polynomials
+#| include: false
+poly_frame <- function(k) {
+  map(c(2, 3, 9), \(d) {
+    ggplot(mean_traj, aes(time, f2)) +
+      geom_smooth(method = "lm", formula = y ~ poly(x, d), se = FALSE, colour = pandan,
+                  linewidth = 1.1, n = 200, linetype = if (d %in% c(2, 3, 9)[seq_len(k)]) "solid" else "blank") +
+      geom_point(colour = kingfisher, size = 2.5) +
+      labs(title = paste("Degree", d), x = "Time (%)", y = if (d == 2) "F2 (Hz)" else NULL)
+  }) |>
+    wrap_plots(nrow = 1)
+}
+```
+
+```{r}
 #| echo: false
+#| results: asis
 #| fig-height: 3.0
-map(c(2, 3, 9), \(d) {
-  ggplot(mean_traj, aes(time, f2)) +
-    geom_smooth(method = "lm", formula = y ~ poly(x, d), se = FALSE, colour = pandan,
-                linewidth = 1.1, n = 200) +
-    geom_point(colour = kingfisher, size = 2.5) +
-    labs(title = paste("Degree", d), x = "Time (%)", y = if (d == 2) "F2 (Hz)" else NULL)
-}) |>
-  wrap_plots(nrow = 1)
+frames(lapply(1:3, poly_frame),
+       alt = "The mean English F2 trajectory in three panels, with polynomial fits of degree 2, 3 and 9 added one at a time")
 ```
 
 - A quadratic or cubic term [underfits]{.hl}: it cannot follow the flat start and the late rise
@@ -183,8 +192,7 @@ Each basis function is multiplied by a coefficient; the sum (salmon), plus the i
 
 ```{r}
 #| label: penalty
-#| echo: false
-#| fig-height: 3.6
+#| include: false
 sp_hat <- m_mean$sp
 fits <- map(c(1e-3, 1, 1e3, 1e6), \(m) {
   mod <- gam(f2 ~ s(time, bs = "cr", k = 10), data = mean_traj, sp = sp_hat * m)
@@ -195,11 +203,22 @@ fits <- map(c(1e-3, 1, 1e3, 1e6), \(m) {
                           `1000` = "sp × 1000", `1e+06` = "sp × 1e6")[as.character(mult)],
                         " (edf ", round(edf, 1), ")"),
          label = fct_reorder(label, mult))
-ggplot(fits, aes(time, fit)) +
-  geom_point(data = mean_traj, aes(y = f2), colour = muted, size = 1.8) +
-  geom_line(colour = kingfisher, linewidth = 1.2) +
-  facet_wrap(~ label, nrow = 1) +
-  labs(x = "Time (%)", y = "F2 (Hz)")
+penalty_frame <- function(k) {
+  ggplot(fits, aes(time, fit)) +
+    geom_blank() +
+    geom_point(data = crossing(mean_traj, label = unique(fits$label)), aes(y = f2), colour = muted, size = 1.8) +
+    geom_line(data = filter(fits, as.integer(label) <= k), colour = kingfisher, linewidth = 1.2) +
+    facet_wrap(~ label, nrow = 1) +
+    labs(x = "Time (%)", y = "F2 (Hz)")
+}
+```
+
+```{r}
+#| echo: false
+#| results: asis
+#| fig-height: 3.6
+frames(lapply(1:4, penalty_frame),
+       alt = "The mean English F2 trajectory in four panels, with the smooth for four smoothing parameters added one at a time, from very wiggly to a straight line")
 ```
 
 The same 10 basis functions with four smoothing parameters. A large penalty pushes the smooth toward a straight line.
@@ -388,8 +407,8 @@ Neighbouring residuals are correlated, so the confidence intervals above are too
 - [Sóskuthy, M. (2017). Generalised additive mixed models for dynamic analysis in linguistics: A practical introduction. _arXiv_, 1703.05339. https://arxiv.org/abs/1703.05339]{.hl}
 - Sóskuthy, M. (2018). _Introducing generalised additive models_ and _Becoming a GAM(M) warrior_ [Workshop slides]. Analysing Curves, University of Manchester, 29 May 2018.
 - Sóskuthy, M. (2021). Evaluating generalised additive mixed modelling strategies for dynamic speech analysis. _Journal of Phonetics_, 84, 101017. https://doi.org/10.1016/j.wocn.2020.101017
-- van Rij, J., Wieling, M., Baayen, R. H., & van Rijn, H. _itsadug: Interpreting time series and autocorrelated data using GAMMs_ (R package). https://CRAN.R-project.org/package=itsadug
-- Wood, S. N. (2017). _Generalized additive models: An introduction with R_ (2nd ed.). CRC Press.
+- van Rij, J., Wieling, M., Baayen, R. H., & van Rijn, H. (`r format(packageDate("itsadug"), "%Y")`). _itsadug: Interpreting time series and autocorrelated data using GAMMs_ (R package). https://CRAN.R-project.org/package=itsadug
+- Wood, S. N. (2017). _Generalized additive models: An introduction with R_ (2nd ed.). CRC Press. https://doi.org/10.1201/9781315370279
 
 ## Sources of the animal facts {.refs}
 

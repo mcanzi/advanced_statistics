@@ -91,8 +91,7 @@ A [dynamite plot]{.hl} shows two numbers for 1,200 responses from 30 people. The
 
 ```{r}
 #| label: bars-hide
-#| echo: false
-#| fig-height: 3.4
+#| include: false
 set.seed(3)
 hidden <- bind_rows(
   tibble(group = "Construction A", y = rnorm(60, 4, 0.9)),
@@ -110,7 +109,14 @@ p_pts <- ggplot(hidden, aes(group, y)) +
   geom_jitter(width = 0.15, height = 0, colour = kingfisher, alpha = 0.8, size = 2) +
   scale_y_continuous(limits = c(0, 7), breaks = 1:7) +
   labs(title = "The data", x = NULL, y = NULL)
-p_bar + p_pts
+```
+
+```{r}
+#| echo: false
+#| results: asis
+#| fig-height: 3.4
+frames(list(p_bar + plot_spacer(), p_bar + p_pts),
+       alt = "Three bars with the same mean rating, then the ratings behind them: one bell shape, two clusters, and only four ratings")
 ```
 
 Three sentence types with the same mean acceptability: one bell shape, two clusters of speakers, and only four ratings.
@@ -208,8 +214,7 @@ _Sources: Prestrud (1991), Arctic; Norwegian Polar Institute_
 
 ```{r}
 #| label: before-after
-#| echo: false
-#| fig-height: 3.6
+#| include: false
 pm <- participant_means
 p_before <- ggplot(pm, aes(group, rt, fill = group)) +
   geom_boxplot(colour = "black") +
@@ -224,7 +229,14 @@ p_after <- ggplot(pm, aes(group, rt)) +
   geom_jitter(width = 0.08, height = 0, colour = kingfisher, size = 2) +
   labs(title = "After", x = NULL, y = "Mean RT per participant (ms)") +
   theme(panel.grid.major.x = element_blank())
-p_before + p_after
+```
+
+```{r}
+#| echo: false
+#| results: asis
+#| fig-height: 3.6
+frames(list(p_before + plot_spacer(), p_before + p_after),
+       alt = "A cluttered boxplot of participant means with a grey background and red and green fills, then the same data with the clutter removed")
 ```
 
 ## What changed
@@ -239,7 +251,7 @@ p_before + p_after
 
 - Choose a [qualitative]{.hl}, [sequential]{.hl} or [diverging]{.hl} palette from the type of variable: categories, low to high, or distance from a meaningful midpoint
 - Red–green colour-vision deficiencies are common, especially among men, and figures are printed in greyscale and shown on dim projectors
-- The [Okabe–Ito]{.hl} palette keeps eight colours distinct for the common deficiencies, and is built into `R` 4.0 or later
+- The [Okabe–Ito]{.hl} palette keeps eight colours distinct for the common deficiencies, and is built into R 4.0 or later
 
 ```{r}
 okabe <- unname(palette.colors(palette = "Okabe-Ito"))
@@ -394,7 +406,7 @@ A [coefficient plot]{.hl} has one row per fixed effect. It works best when there
 
 ## Which plot for a model?
 
-[Predictions]{.hl} show effects in the units of the outcome, which makes them the better choice for interactions and non-linear effects. [Coefficients]{.hl} are compact, but each estimate depends on coding and centering, so readers also need the model specification.
+[Predictions]{.hl} show effects in the units of the outcome, which makes them the better choice for interactions and non-linear effects. [Coefficients]{.hl} are compact, but each estimate depends on coding and centring, so readers also need the model specification.
 
 . . .
 
@@ -563,19 +575,19 @@ A screenshot of the RStudio plot pane is a raster image at screen size, and it b
 
 ## References {.refs}
 
-- Allen, M., Poggiali, D., Whitaker, K., Marshall, T. R., van Langen, J., & Kievit, R. A. (2019). Raincloud plots: A multi-platform tool for robust data visualization. _Wellcome Open Research_, 4, 63.
-- Lüdecke, D. (2018). ggeffects: Tidy data frames of marginal effects from regression models. _Journal of Open Source Software_, 3(26), 772.
+- Allen, M., Poggiali, D., Whitaker, K., Marshall, T. R., van Langen, J., & Kievit, R. A. (2019). Raincloud plots: A multi-platform tool for robust data visualization. _Wellcome Open Research_, 4, 63. https://doi.org/10.12688/wellcomeopenres.15191.1
+- Lüdecke, D. (2018). ggeffects: Tidy data frames of marginal effects from regression models. _Journal of Open Source Software_, 3(26), 772. https://doi.org/10.21105/joss.00772
 - Okabe, M., & Ito, K. (2008). _Color universal design (CUD): How to make figures and presentations that are friendly to colorblind people_. https://jfly.uni-koeln.de/color/
 - Tufte, E. R. (1983). _The visual display of quantitative information_. Graphics Press.
-- Weissgerber, T. L., Milic, N. M., Winham, S. J., & Garovic, V. D. (2015). Beyond bar and line graphs: Time for a new data presentation paradigm. _PLoS Biology_, 13(4), e1002128.
+- Weissgerber, T. L., Milic, N. M., Winham, S. J., & Garovic, V. D. (2015). Beyond bar and line graphs: Time for a new data presentation paradigm. _PLoS Biology_, 13(4), e1002128. https://doi.org/10.1371/journal.pbio.1002128
 - [Wilke, C. O. (2019). _Fundamentals of data visualization_. O'Reilly. https://clauswilke.com/dataviz/]{.hl}
 
 ## Sources of the animal facts {.refs}
 
-- Prestrud, P. (1991). Adaptations by the arctic fox (_Alopex lagopus_) to the polar winter. _Arctic_, 44(2), 132–138.
-- Scholander, P. F., Walters, V., Hock, R., & Irving, L. (1950). Body insulation of some arctic and tropical mammals and birds. _Biological Bulletin_, 99(2), 225–236.
-- Norwegian Polar Institute. Arctic fox (_Vulpes lagopus_). https://npolar.no/?p=5053
-- Underwood, L. S., & Reynolds, P. (1980). _Photoperiod and fur lengths in the arctic fox (Alopex lagopus L.)_. Report to the Office of Naval Research, University of Alaska Anchorage. https://apps.dtic.mil/sti/tr/pdf/ADA085976.pdf
+- Norwegian Polar Institute. Arctic fox (_Vulpes lagopus_). https://npolar.no/en/species/arctic-fox/
+- Prestrud, P. (1991). Adaptations by the arctic fox (_Alopex lagopus_) to the polar winter. _Arctic_, 44(2), 132–138. https://doi.org/10.14430/arctic1529
+- Scholander, P. F., Walters, V., Hock, R., & Irving, L. (1950). Body insulation of some arctic and tropical mammals and birds. _Biological Bulletin_, 99(2), 225–236. https://doi.org/10.2307/1538740
+- Underwood, L. S., & Reynolds, P. (1980). _Photoperiod and fur lengths in the arctic fox (Alopex lagopus L.)_. Report to the Office of Naval Research, University of Alaska Anchorage. https://apps.dtic.mil/sti/tr/pdf/ADA085976.pdf https://doi.org/10.1007/BF02245540
 
 ## Slides and code
 

@@ -35,7 +35,7 @@ _Source: Prat, Taub & Yovel (2015), Science Advances_
 
 ## Where we are
 
-Last time: smooth terms, difference smooths and significance testing with GAMs, in models that treated every measurement as independent. Today: the "mixed" part, following the second half of Sóskuthy's (2018) workshop.
+Lecture 2: smooth terms, difference smooths and significance testing with GAMs, in models that treated every measurement as independent. Today: the "mixed" part, following the second half of Sóskuthy's (2018) workshop.
 
 ## Today
 
@@ -114,7 +114,7 @@ m_gam <- bam(f2 ~ l1_o + s(time, k = 10) + s(time, by = l1_o, k = 10),
 acf_gam <- resid_acf(residuals(m_gam), price$traj)
 ```
 
-The [autocorrelation]{.hl} at lag 1 is the correlation between each residual and the residual one measurement earlier in the same trajectory; lag 2 skips one measurement, and so on. `itsadug::acf_resid()` does the same with base `R` graphics, and `{konstats}` has our function as `konstats::resid_acf()`.
+The [autocorrelation]{.hl} at lag 1 is the correlation between each residual and the residual one measurement earlier in the same trajectory; lag 2 skips one measurement, and so on. `itsadug::acf_resid()` does the same with base R graphics, and `{konstats}` has our function as `konstats::resid_acf()`.
 
 ## Residual autocorrelation
 
@@ -167,19 +167,30 @@ m_smooth <- bam(f2 ~ l1_o + s(time, k = 10) + s(time, by = l1_o, k = 10) +
 
 ```{r}
 #| label: speaker-fits
-#| echo: false
-#| fig-height: 3.6
+#| include: false
 speaker_grid <- distinct(price, speaker, l1, l1_o) |>
   crossing(time = seq(0, 100, by = 2))
-list(`Random intercepts` = m_int, `+ random slopes` = m_slope, `Random smooths` = m_smooth) |>
+speaker_fits <- list(`Random intercepts` = m_int, `+ random slopes` = m_slope, `Random smooths` = m_smooth) |>
   imap(\(m, name) mutate(speaker_grid, fit = as.numeric(predict(m, speaker_grid)), model = name)) |>
   list_rbind() |>
-  mutate(model = fct_inorder(model)) |>
-  ggplot(aes(time, fit, group = speaker, colour = l1)) +
-  geom_line(alpha = 0.8) +
-  facet_wrap(~ model) +
-  labs(x = "Time (%)", y = "Fitted F2 (Hz)", colour = NULL) +
-  theme(legend.position = "right")
+  mutate(model = fct_inorder(model))
+
+speaker_frame <- function(k) {
+  ggplot(speaker_fits, aes(time, fit, group = speaker, colour = l1)) +
+    geom_blank() +
+    geom_line(data = filter(speaker_fits, as.integer(model) <= k), alpha = 0.8) +
+    facet_wrap(~ model) +
+    labs(x = "Time (%)", y = "Fitted F2 (Hz)", colour = NULL) +
+    theme(legend.position = "right")
+}
+```
+
+```{r}
+#| echo: false
+#| results: asis
+#| fig-height: 3.6
+frames(lapply(1:3, speaker_frame),
+       alt = "Fitted F2 curves, one per speaker, for random intercepts, then random slopes, then random smooths")
 ```
 
 One line per speaker. Intercepts shift each speaker's curve up or down, slopes tilt it, and random smooths let each speaker's curve take its own shape.
@@ -234,20 +245,32 @@ m_ar <- bam(f2 ~ l1_o + s(time, k = 10) + s(time, by = l1_o, k = 10) +
 
 ```{r}
 #| label: acf-compare
-#| echo: false
-#| fig-height: 3.3
-list(`GAM, no random effects` = residuals(m_gam),
-     `Random smooths by speaker` = residuals(m_noar),
-     `+ AR1` = m_ar$std.rsd) |>
+#| include: false
+acfs <- list(`GAM, no random effects` = residuals(m_gam),
+             `Random smooths by speaker` = residuals(m_noar),
+             `+ AR1` = m_ar$std.rsd) |>
   imap(\(r, name) mutate(resid_acf(r, price$traj), model = name)) |>
   list_rbind() |>
-  mutate(model = fct_inorder(model)) |>
-  ggplot(aes(x = lag, y = acf)) +
-  geom_hline(yintercept = 0, colour = muted) +
-  geom_segment(aes(xend = lag, yend = 0), colour = kingfisher, linewidth = 1.1) +
-  geom_point(colour = kingfisher, size = 2.5) +
-  facet_wrap(~ model) +
-  labs(x = "Lag (measurements)", y = "Autocorrelation")
+  mutate(model = fct_inorder(model))
+
+acf_frame <- function(k) {
+  shown <- filter(acfs, as.integer(model) <= k)
+  ggplot(acfs, aes(x = lag, y = acf)) +
+    geom_blank() +
+    geom_hline(yintercept = 0, colour = muted) +
+    geom_segment(data = shown, aes(xend = lag, yend = 0), colour = kingfisher, linewidth = 1.1) +
+    geom_point(data = shown, colour = kingfisher, size = 2.5) +
+    facet_wrap(~ model) +
+    labs(x = "Lag (measurements)", y = "Autocorrelation")
+}
+```
+
+```{r}
+#| echo: false
+#| results: asis
+#| fig-height: 3.3
+frames(lapply(1:3, acf_frame),
+       alt = "Residual autocorrelation by lag for three models, added one at a time: a GAM, a GAMM with random smooths by speaker, and the same GAMM with an AR1 error model")
 ```
 
 For the AR1 model, the autocorrelation is computed on the [standardised residuals]{.hl}, `m_ar$std.rsd`, which take the error model into account.
@@ -407,8 +430,8 @@ Then report the model comparison, and show the prediction curves and the differe
 - [Sóskuthy, M. (2017). Generalised additive mixed models for dynamic analysis in linguistics: A practical introduction. _arXiv_, 1703.05339. https://arxiv.org/abs/1703.05339]{.hl}
 - Sóskuthy, M. (2018). _Introducing generalised additive models_ and _Becoming a GAM(M) warrior_ [Workshop slides]. Analysing Curves, University of Manchester, 29 May 2018.
 - Sóskuthy, M. (2021). Evaluating generalised additive mixed modelling strategies for dynamic speech analysis. _Journal of Phonetics_, 84, 101017. https://doi.org/10.1016/j.wocn.2020.101017
-- Wieling, M. (2018). Analyzing dynamic phonetic data using generalized additive mixed modeling: A tutorial focusing on articulatory differences between L1 and L2 speakers of English. _Journal of Phonetics_, 70, 86–116.
-- Wood, S. N. (2017). _Generalized additive models: An introduction with R_ (2nd ed.). CRC Press.
+- Wieling, M. (2018). Analyzing dynamic phonetic data using generalized additive mixed modeling: A tutorial focusing on articulatory differences between L1 and L2 speakers of English. _Journal of Phonetics_, 70, 86–116. https://doi.org/10.1016/j.wocn.2018.03.002
+- Wood, S. N. (2017). _Generalized additive models: An introduction with R_ (2nd ed.). CRC Press. https://doi.org/10.1201/9781315370279
 
 ## Sources of the animal facts {.refs}
 

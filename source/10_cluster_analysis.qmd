@@ -18,7 +18,6 @@ options(width = 70, pillar.print_min = 4, pillar.print_max = 4)
 
 stop_cols <- c(tense = hornbill, lenis = pandan, aspirated = kingfisher)
 
-# the segments of a dendrogram from hclust(), for ggplot2
 dendro_segments <- function(hc) {
   n <- length(hc$order)
   x <- numeric(n)
@@ -58,14 +57,14 @@ Factor analysis grouped the variables: which questionnaire items or linguistic f
 
 . . .
 
-There is no outcome to predict. The data have no labels for the groups, and the method has to find them: this is [unsupervised]{.hl} learning. This lecture explains how clustering works and how to check its results; next time you cluster the web registers from lecture 9.
+There is no outcome to predict. The data have no labels for the groups, and the method has to find them: this is [unsupervised]{.hl} learning. This lecture explains how clustering works and how to check its results; lecture 11 clusters the web registers from lecture 9.
 
 ## Today
 
 1. Distances
 2. k-means
 3. Hierarchical and model-based clustering
-4. How many clusters, and are they real?
+4. Choosing and checking clusters
 
 ## The data {.smaller}
 
@@ -131,26 +130,38 @@ VOT varies by tens of milliseconds, f0 by a few semitones. In the raw units, a d
 
 ```{r}
 #| label: scaling
-#| echo: false
-#| fig-height: 3.4
+#| include: false
 younger <- filter(ks, generation == "younger")
 set.seed(1)
 km_raw <- kmeans(younger[c("vot", "f0_st")], centers = 3, nstart = 25)
 set.seed(1)
 km_std <- kmeans(scale(younger[c("vot", "f0_st")]), centers = 3, nstart = 25)
-bind_rows(`Raw units` = mutate(younger, cluster = factor(km_raw$cluster)),
-          `Standardised` = mutate(younger, cluster = factor(km_std$cluster)), .id = "data") |>
-  ggplot(aes(x = vot, y = f0_st, colour = cluster)) +
-  geom_point(alpha = 0.5, size = 1.4) +
-  scale_colour_manual(values = c(hornbill, pandan, kingfisher)) +
-  facet_wrap(~ data) +
-  labs(x = "VOT (ms)", y = "f0 (semitones)", colour = "Cluster") +
-  theme(legend.position = "right")
+scaled <- bind_rows(`Raw units` = mutate(younger, cluster = factor(km_raw$cluster)),
+                    `Standardised` = mutate(younger, cluster = factor(km_std$cluster)), .id = "data") |>
+  mutate(data = fct_inorder(data))
+
+scaling_frame <- function(k) {
+  ggplot(scaled, aes(x = vot, y = f0_st, colour = cluster)) +
+    geom_blank() +
+    geom_point(data = filter(scaled, as.integer(data) <= k), alpha = 0.5, size = 1.4) +
+    scale_colour_manual(values = c(hornbill, pandan, kingfisher)) +
+    facet_wrap(~ data) +
+    labs(x = "VOT (ms)", y = "f0 (semitones)", colour = "Cluster") +
+    theme(legend.position = "right")
+}
+```
+
+```{r}
+#| echo: false
+#| results: asis
+#| fig-height: 3.4
+frames(lapply(1:2, scaling_frame),
+       alt = "Younger speakers' stops coloured by k-means cluster, first on raw units, then on standardised measures")
 ```
 
 Younger speakers, three clusters each. On raw units, the clusters cut along VOT and split the lenis and aspirated stops in the middle. Standardised, f0 counts too, and the clusters follow the stops.
 
-## Which variables, in which form?
+## Choosing and transforming the variables
 
 The choice of measures and their transformation decides what "similar" means, before any algorithm runs.
 
@@ -189,8 +200,7 @@ Each step lowers the [within-cluster sum of squares]{.hl}: the squared distances
 
 ```{r}
 #| label: kmeans-steps
-#| echo: false
-#| fig-height: 3.4
+#| include: false
 older <- filter(ks, generation == "older")
 X_old <- scale(older[c("vot", "f0_st")])
 nearest <- function(X, C) max.col(-sapply(seq_len(nrow(C)), \(j) colSums((t(X) - C[j, ])^2)))
@@ -209,12 +219,23 @@ for (s in 0:10) {
 step_lab <- c(`0` = "Random centres", `1` = "After one step", `10` = "Converged")
 pts <- map(steps, "points") |> list_rbind() |> mutate(step = factor(step_lab[as.character(step)], levels = step_lab))
 cen <- map(steps, "centres") |> list_rbind() |> mutate(step = factor(step_lab[as.character(step)], levels = step_lab))
-ggplot(pts, aes(x, y, colour = cluster)) +
-  geom_point(alpha = 0.35, size = 1.1) +
-  geom_point(data = cen, shape = 4, size = 5, stroke = 2.2, colour = mist) +
-  scale_colour_manual(values = c(hornbill, pandan, kingfisher), guide = "none") +
-  facet_wrap(~ step) +
-  labs(x = "VOT (standardised)", y = "f0 (standardised)")
+step_frame <- function(k) {
+  ggplot(pts, aes(x, y, colour = cluster)) +
+    geom_blank() +
+    geom_point(data = filter(pts, as.integer(step) <= k), alpha = 0.35, size = 1.1) +
+    geom_point(data = filter(cen, as.integer(step) <= k), shape = 4, size = 5, stroke = 2.2, colour = mist) +
+    scale_colour_manual(values = c(hornbill, pandan, kingfisher), guide = "none") +
+    facet_wrap(~ step) +
+    labs(x = "VOT (standardised)", y = "f0 (standardised)")
+}
+```
+
+```{r}
+#| echo: false
+#| results: asis
+#| fig-height: 3.4
+frames(lapply(1:3, step_frame),
+       alt = "k-means on the older speakers' stops: random centres, then the clusters after one step, then the converged clusters")
 ```
 
 Older speakers. The crosses are the centres; each point takes the colour of its nearest centre.
@@ -355,7 +376,7 @@ table(older$stop, mc_log$classification)
 
 On the log scale, the tense stops are roughly normal. BIC chooses three components, and they match the stops. A component is one normal distribution, so a cluster with another shape can need several.
 
-# How many clusters, and are they real?
+# Choosing and checking clusters
 
 ::: {.fact}
 `Did you know:` wild African elephants in Kenya address each other with [name-like]{.hl} calls. They responded more strongly to playbacks of calls that had first been addressed to them than to calls addressed to other elephants.
@@ -412,7 +433,7 @@ tibble(k = 2:6,
 
 . . .
 
-The average silhouette width is highest at k = 3 in both generations. `silhouette()` comes from `{cluster}`, which is installed with `R`.
+The average silhouette width is highest at k = 3 in both generations. `silhouette()` comes from `{cluster}`, which is installed with R.
 
 ## Clustering random noise {.smaller}
 
@@ -488,7 +509,7 @@ Our tokens are not independent: each speaker contributes 36, and tokens of one s
 
 ## Reporting {.smaller}
 
-> We clustered the 720 tokens of each generation by VOT and by f0 in semitones relative to the speaker's mean, both standardised. k-means with 25 random starts (`kmeans()` in `R`) and Ward's hierarchical clustering on Euclidean distances gave the same three clusters. The average silhouette width was highest for three clusters (`r round(avg_sil(X_old, 3), 2)` for older and `r round(avg_sil(X_young, 3), 2)` for younger speakers), and the clusters matched the lenis, tense and aspirated stops.
+> We clustered the 720 tokens of each generation by VOT and by f0 in semitones relative to the speaker's mean, both standardised. k-means with 25 random starts (`kmeans()` in R) and Ward's hierarchical clustering on Euclidean distances gave the same three clusters. The average silhouette width was highest for three clusters (`r round(avg_sil(X_old, 3), 2)` for older and `r round(avg_sil(X_young, 3), 2)` for younger speakers), and the clusters matched the lenis, tense and aspirated stops.
 
 . . .
 
@@ -507,14 +528,17 @@ Report the variables and how you transformed them, the distance, the method and 
 
 ## References {.refs}
 
-- Fraley, C., & Raftery, A. E. (2002). Model-based clustering, discriminant analysis, and density estimation. _Journal of the American Statistical Association_, 97(458), 611–631.
-- Hubert, L., & Arabie, P. (1985). Comparing partitions. _Journal of Classification_, 2(1), 193–218.
-- [James, G., Witten, D., Hastie, T., & Tibshirani, R. (2021). _An introduction to statistical learning: With applications in R_ (2nd ed.). Springer. Chapter 12. https://www.statlearning.com]{.hl}
-- Kaufman, L., & Rousseeuw, P. J. (1990). _Finding groups in data: An introduction to cluster analysis_. Wiley.
-- Rousseeuw, P. J. (1987). Silhouettes: A graphical aid to the interpretation and validation of cluster analysis. _Journal of Computational and Applied Mathematics_, 20, 53–65.
-- Scrucca, L., Fop, M., Murphy, T. B., & Raftery, A. E. (2016). mclust 5: Clustering, classification and density estimation using Gaussian finite mixture models. _The R Journal_, 8(1), 289–317.
-- Silva, D. J. (2006). Acoustic evidence for the emergence of tonal contrast in contemporary Korean. _Phonology_, 23(2), 287–308.
-- Ward, J. H. (1963). Hierarchical grouping to optimize an objective function. _Journal of the American Statistical Association_, 58(301), 236–244.
+- Fraley, C., & Raftery, A. E. (2002). Model-based clustering, discriminant analysis, and density estimation. _Journal of the American Statistical Association_, 97(458), 611–631. https://doi.org/10.1198/016214502760047131
+- Hubert, L., & Arabie, P. (1985). Comparing partitions. _Journal of Classification_, 2(1), 193–218. https://doi.org/10.1007/BF01908075
+- [James, G., Witten, D., Hastie, T., & Tibshirani, R. (2021). _An introduction to statistical learning: With applications in R_ (2nd ed.). Springer. Chapter 12. https://www.statlearning.com https://doi.org/10.1007/978-1-0716-1418-1]{.hl}
+- Kaufman, L., & Rousseeuw, P. J. (1990). _Finding groups in data: An introduction to cluster analysis_. Wiley. https://doi.org/10.1002/9780470316801
+
+## References (continued) {.refs}
+
+- Rousseeuw, P. J. (1987). Silhouettes: A graphical aid to the interpretation and validation of cluster analysis. _Journal of Computational and Applied Mathematics_, 20, 53–65. https://doi.org/10.1016/0377-0427(87)90125-7
+- Scrucca, L., Fop, M., Murphy, T. B., & Raftery, A. E. (2016). mclust 5: Clustering, classification and density estimation using Gaussian finite mixture models. _The R Journal_, 8(1), 289–317. https://doi.org/10.32614/RJ-2016-021
+- Silva, D. J. (2006). Acoustic evidence for the emergence of tonal contrast in contemporary Korean. _Phonology_, 23(2), 287–308. https://doi.org/10.1017/S0952675706000911
+- Ward, J. H. (1963). Hierarchical grouping to optimize an objective function. _Journal of the American Statistical Association_, 58(301), 236–244. https://doi.org/10.1080/01621459.1963.10500845
 
 ## Sources of the animal facts {.refs}
 

@@ -35,9 +35,9 @@ cluster_cols <- c(hornbill, pandan, kingfisher, orchid, mist, moss)
 _Source: West & King (1990), American Scientist_
 :::
 
-## How today works
+## How this session works
 
-As in lectures 4, 6 and 9: you work in pairs, the task slides say what to do, checkpoints show what you should get, and the solutions are in the `.Rmd` file of these slides on GitHub. The tutorial sheet for today: `konstats::get_tutorial(11, ".", course = "advanced")`.
+As in lectures 4, 6 and 9: you work on your own or in pairs, the task slides say what to do, checkpoints show what you should get, and the solutions are in the source of these slides, `source/11_cluster_analysis_practical.qmd` at [github.com/mcanzi/advanced_statistics](https://github.com/mcanzi/advanced_statistics). The tutorial sheet for this session: `konstats::get_tutorial(11, ".", course = "advanced")`.
 
 . . .
 
@@ -171,18 +171,31 @@ k_choice <- tibble(k = 1:8) |>
 
 ```{r}
 #| label: check-3
-#| echo: false
-#| fig-height: 3.0
-k_choice |>
+#| include: false
+k_measures <- k_choice |>
   pivot_longer(c(wss, sil), names_to = "measure", values_to = "value") |>
   filter(!is.na(value)) |>
-  mutate(measure = if_else(measure == "wss", "Within-cluster sum of squares", "Average silhouette width")) |>
-  ggplot(aes(x = k, y = value)) +
-  geom_line(colour = muted) +
-  geom_point(colour = kingfisher, size = 3) +
-  scale_x_continuous(breaks = 1:8) +
-  facet_wrap(~ measure, scales = "free_y") +
-  labs(x = "Number of clusters k", y = NULL)
+  mutate(measure = factor(if_else(measure == "wss", "Within-cluster sum of squares", "Average silhouette width"),
+                          levels = c("Within-cluster sum of squares", "Average silhouette width")))
+
+k_frame <- function(k) {
+  shown <- filter(k_measures, as.integer(measure) <= k)
+  ggplot(k_measures, aes(x = k, y = value)) +
+    geom_blank() +
+    geom_line(data = shown, colour = muted) +
+    geom_point(data = shown, colour = kingfisher, size = 3) +
+    scale_x_continuous(breaks = 1:8) +
+    facet_wrap(~ measure, scales = "free_y") +
+    labs(x = "Number of clusters k", y = NULL)
+}
+```
+
+```{r}
+#| echo: false
+#| results: asis
+#| fig-height: 3.0
+frames(lapply(1:2, k_frame),
+       alt = "Within-cluster sum of squares for k from 1 to 8, then the average silhouette width for k from 2 to 8")
 ```
 
 There is no clear elbow, and the average silhouette width stays between `r round(min(k_choice$sil, na.rm = TRUE), 2)` and `r round(max(k_choice$sil, na.rm = TRUE), 2)` for every k: weak structure, by Kaufman and Rousseeuw's (1990) guide.
@@ -252,15 +265,25 @@ profiles <- scores |>
 
 ```{r}
 #| label: check-5
+#| include: false
+profile_frame <- function(k) {
+  ggplot(profiles, aes(x = dimension, y = mean, colour = cluster, group = cluster)) +
+    geom_blank() +
+    geom_hline(yintercept = 0, colour = muted, linetype = "dashed") +
+    geom_line(data = filter(profiles, as.integer(cluster) <= k), linewidth = 1.2) +
+    geom_point(data = filter(profiles, as.integer(cluster) <= k), size = 3.5) +
+    scale_colour_manual(values = cluster_cols, limits = levels(profiles$cluster)) +
+    labs(x = NULL, y = "Mean score", colour = "Cluster") +
+    theme(legend.position = "right")
+}
+```
+
+```{r}
 #| echo: false
+#| results: asis
 #| fig-height: 3.2
-ggplot(profiles, aes(x = dimension, y = mean, colour = cluster, group = cluster)) +
-  geom_hline(yintercept = 0, colour = muted, linetype = "dashed") +
-  geom_line(linewidth = 1.2) +
-  geom_point(size = 3.5) +
-  scale_colour_manual(values = cluster_cols) +
-  labs(x = NULL, y = "Mean score", colour = "Cluster") +
-  theme(legend.position = "right")
+frames(lapply(seq_len(nlevels(profiles$cluster)), profile_frame),
+       alt = "Mean score of each cluster on the three dimensions, one cluster added at a time")
 ```
 
 Each cluster stands out on one or two dimensions. Clusters that mix registers can still have a clear profile.
@@ -330,7 +353,7 @@ Write a short methods and results paragraph. It should say:
 
 . . .
 
-Then swap with another pair: would a reviewer accept your number of clusters?
+Would a reviewer accept your number of clusters? If you work with others, swap paragraphs and check each other's.
 
 ## If you finish early
 
@@ -349,10 +372,10 @@ Then swap with another pair: would a reviewer accept your number of clusters?
 
 ## References {.refs}
 
-- Biber, D. (1988). _Variation across speech and writing_. Cambridge University Press.
+- Biber, D. (1988). _Variation across speech and writing_. Cambridge University Press. https://doi.org/10.1017/CBO9780511621024
 - Ehret, K., & Taboada, M. (2021). Characterising online news comments: A multi-dimensional cruise through online registers. _Frontiers in Artificial Intelligence_, 4, 643770. https://doi.org/10.3389/frai.2021.643770
-- [James, G., Witten, D., Hastie, T., & Tibshirani, R. (2021). _An introduction to statistical learning: With applications in R_ (2nd ed.). Springer. Chapter 12. https://www.statlearning.com]{.hl}
-- Kaufman, L., & Rousseeuw, P. J. (1990). _Finding groups in data: An introduction to cluster analysis_. Wiley.
+- [James, G., Witten, D., Hastie, T., & Tibshirani, R. (2021). _An introduction to statistical learning: With applications in R_ (2nd ed.). Springer. Chapter 12. https://www.statlearning.com https://doi.org/10.1007/978-1-0716-1418-1]{.hl}
+- Kaufman, L., & Rousseeuw, P. J. (1990). _Finding groups in data: An introduction to cluster analysis_. Wiley. https://doi.org/10.1002/9780470316801
 
 ## Sources of the animal facts {.refs}
 

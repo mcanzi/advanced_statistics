@@ -81,8 +81,7 @@ Only the sample sizes are under our control once the design and the effect of in
 
 ```{r}
 #| label: filter
-#| echo: false
-#| fig-height: 2.9
+#| include: false
 set.seed(2034)
 filter_sims <- map(1:2000, \(i) {
   a <- rnorm(20, 0.3)
@@ -92,13 +91,26 @@ filter_sims <- map(1:2000, \(i) {
   list_rbind() |>
   mutate(sig = if_else(p < 0.05, "p < .05", "p ≥ .05"))
 sig_mean <- mean(filter_sims$est[filter_sims$sig == "p < .05" & filter_sims$est > 0])
-ggplot(filter_sims, aes(x = est, fill = sig)) +
-  geom_histogram(binwidth = 0.05, boundary = 0) +
-  geom_vline(xintercept = 0.3, colour = mist, linewidth = 1) +
-  geom_vline(xintercept = sig_mean, colour = mist, linetype = "dashed", linewidth = 1) +
-  scale_fill_manual(values = c(`p < .05` = kingfisher, `p ≥ .05` = vine)) +
-  labs(x = "Estimated difference (true difference: 0.3 SD)", y = "Studies", fill = NULL) +
-  theme(legend.position = "inside", legend.position.inside = c(0.12, 0.85))
+filter_frame <- function(highlight) {
+  p <- filter_sims |>
+    mutate(sig = if (highlight) sig else "p ≥ .05") |>
+    ggplot(aes(x = est, fill = sig)) +
+    geom_histogram(binwidth = 0.05, boundary = 0) +
+    geom_vline(xintercept = 0.3, colour = mist, linewidth = 1) +
+    scale_fill_manual(values = c(`p < .05` = kingfisher, `p ≥ .05` = vine)) +
+    labs(x = "Estimated difference (true difference: 0.3 SD)", y = "Studies", fill = NULL) +
+    theme(legend.position = "inside", legend.position.inside = c(0.12, 0.85))
+  if (!highlight) return(p + theme(legend.position = "none"))
+  p + geom_vline(xintercept = sig_mean, colour = mist, linetype = "dashed", linewidth = 1)
+}
+```
+
+```{r}
+#| echo: false
+#| results: asis
+#| fig-height: 2.9
+frames(list(filter_frame(FALSE), filter_frame(TRUE)),
+       alt = "Estimated differences from 2000 simulated studies around the true difference of 0.3, then the significant estimates highlighted, with their mean as a dashed line")
 ```
 
 2,000 simulated studies with 20 participants per group. Only `r round(100 * mean(filter_sims$p < 0.05))`% are significant, and the significant positive estimates average `r round(sig_mean, 2)` (dashed), `r round(sig_mean / 0.3, 1)` times the true effect (Gelman & Carlin, 2014).
@@ -252,22 +264,35 @@ pc_pic <- powerCurve(m_pic, test = fixed("freq_c:group", "z"), along = "picture"
 
 ```{r}
 #| label: curves-plot
-#| echo: false
-#| fig-height: 3.0
+#| include: false
 pc_tab <- function(pc) {
   s <- summary(pc)
   tibble(n = s$nlevels, power = s$mean, lower = s$lower, upper = s$upper)
 }
-bind_rows(`More participants (40 pictures)` = pc_tab(pc_part),
-          `More pictures (30 participants)` = pc_tab(pc_pic), .id = "design") |>
-  ggplot(aes(x = n, y = power)) +
-  geom_hline(yintercept = 0.8, colour = muted, linetype = "dashed") +
-  geom_ribbon(aes(ymin = lower, ymax = upper), fill = kingfisher, alpha = 0.25) +
-  geom_line(colour = kingfisher, linewidth = 1.1) +
-  geom_point(colour = kingfisher, size = 2.5) +
-  facet_wrap(~ design, scales = "free_x") +
-  scale_y_continuous(limits = c(0, 1)) +
-  labs(x = "Number of participants or pictures", y = "Power (95% CI)")
+power_curves <- bind_rows(`More participants (40 pictures)` = pc_tab(pc_part),
+                          `More pictures (30 participants)` = pc_tab(pc_pic), .id = "design") |>
+  mutate(design = fct_inorder(design))
+
+curve_frame <- function(k) {
+  shown <- filter(power_curves, as.integer(design) <= k)
+  ggplot(power_curves, aes(x = n, y = power)) +
+    geom_blank() +
+    geom_hline(yintercept = 0.8, colour = muted, linetype = "dashed") +
+    geom_ribbon(data = shown, aes(ymin = lower, ymax = upper), fill = kingfisher, alpha = 0.25) +
+    geom_line(data = shown, colour = kingfisher, linewidth = 1.1) +
+    geom_point(data = shown, colour = kingfisher, size = 2.5) +
+    facet_wrap(~ design, scales = "free_x") +
+    scale_y_continuous(limits = c(0, 1)) +
+    labs(x = "Number of participants or pictures", y = "Power (95% CI)")
+}
+```
+
+```{r}
+#| echo: false
+#| results: asis
+#| fig-height: 3.0
+frames(lapply(1:2, curve_frame),
+       alt = "Simulated power with 95% intervals for more participants, then for more pictures, against a dashed line at 80%")
 ```
 
 The interaction compares groups of participants, and participants differ in their frequency slopes. Extra participants raise power much faster than extra pictures, which only make each participant's slope a little more precise.
@@ -386,10 +411,10 @@ Also report the test, the number of simulations (1,000 or more in a real study) 
 ## References {.refs}
 
 - Brysbaert, M., & Stevens, M. (2018). Power analysis and effect size in mixed effects models: A tutorial. _Journal of Cognition_, 1(1), 9. https://doi.org/10.5334/joc.10
-- Gelman, A., & Carlin, J. (2014). Beyond power calculations: Assessing Type S (sign) and Type M (magnitude) errors. _Perspectives on Psychological Science_, 9(6), 641–651.
+- Gelman, A., & Carlin, J. (2014). Beyond power calculations: Assessing Type S (sign) and Type M (magnitude) errors. _Perspectives on Psychological Science_, 9(6), 641–651. https://doi.org/10.1177/1745691614551642
 - [Green, P., & MacLeod, C. J. (2016). SIMR: An R package for power analysis of generalized linear mixed models by simulation. _Methods in Ecology and Evolution_, 7(4), 493–498. https://doi.org/10.1111/2041-210X.12504]{.hl}
 - [Heinsberg, L. W., & Weeks, D. E. (2022). Post hoc power is not informative. _Genetic Epidemiology_, 46(7), 390–394. https://doi.org/10.1002/gepi.22464]{.hl}
-- Hoenig, J. M., & Heisey, D. M. (2001). The abuse of power: The pervasive fallacy of power calculations for data analysis. _The American Statistician_, 55(1), 19–24.
+- Hoenig, J. M., & Heisey, D. M. (2001). The abuse of power: The pervasive fallacy of power calculations for data analysis. _The American Statistician_, 55(1), 19–24. https://doi.org/10.1198/000313001300339897
 - Vasishth, S., Mertzen, D., Jäger, L. A., & Gelman, A. (2018). The statistical significance filter leads to overoptimistic expectations of replicability. _Journal of Memory and Language_, 103, 151–175. https://doi.org/10.1016/j.jml.2018.07.004
 
 ## Sources of the animal facts {.refs}
